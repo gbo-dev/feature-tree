@@ -1,0 +1,82 @@
+package core
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/gbo-dev/feature-tree/internal/gitx"
+	"github.com/gbo-dev/feature-tree/internal/testutil"
+)
+
+func TestRemoveWorktreeRejectsConflictingDeleteFlags(t *testing.T) {
+	svc := &Service{Ctx: &gitx.RepoContext{DefaultBranch: "main"}}
+
+	_, err := svc.RemoveWorktree("feature", false, true, true)
+	if err == nil {
+		t.Fatalf("RemoveWorktree expected an error for conflicting flags")
+	}
+	if !strings.Contains(err.Error(), "cannot use --force-branch with --no-delete-branch") {
+		t.Fatalf("unexpected error for conflicting flags: %v", err)
+	}
+}
+
+func TestEnsureWorktreeSafeToRemoveRejectsDirtyWorktree(t *testing.T) {
+	svc, featurePath, branch := setupServiceWithFeatureWorktree(t)
+
+	dirtyPath := filepath.Join(featurePath, "DIRTY.txt")
+	if err := os.WriteFile(dirtyPath, []byte("dirty\n"), 0o644); err != nil {
+		t.Fatalf("write dirty file: %v", err)
+	}
+
+	err := svc.ensureWorktreeSafeToRemove(featurePath, branch, svc.Ctx.DefaultBranch)
+	if err == nil {
+		t.Fatalf("ensureWorktreeSafeToRemove expected dirty-worktree error")
+	}
+	if !strings.Contains(err.Error(), "worktree is dirty") {
+		t.Fatalf("dirty-worktree error = %q, expected dirty marker", err.Error())
+	}
+}
+
+func TestEnsureWorktreeSafeToRemoveAllowsCleanBranchWithoutUpstreamWhenDeletable(t *testing.T) {
+	svc, featurePath, branch := setupServiceWithFeatureWorktree(t)
+
+	err := svc.ensureWorktreeSafeToRemove(featurePath, branch, svc.Ctx.DefaultBranch)
+	if err != nil {
+		t.Fatalf("ensureWorktreeSafeToRemove returned unexpected error: %v", err)
+	}
+}
+
+func setupServiceWithFeatureWorktree(t *testing.T) (*Service, string, string) {
+	t.Helper()
+
+	gitx.SetCommandContext(context.Background())
+
+	base := t.TempDir()
+	source := filepath.Join(base, "source")
+	testutil.InitRepoWithMain(t, source)
+
+	remote := filepath.Join(base, "origin.git")
+	testutil.RunGit(t, "", "clone", "--bare", source, remote)
+
+	target := filepath.Join(base, "repo")
+	cloneResult, err := gitx.CloneRepo(remote, target)
+	if err != nil {
+		t.Fatalf("CloneRepo failed: %v", err)
+	}
+
+	branch := "feature-remove"
+	featurePath := filepath.Join(cloneResult.RepoRoot, branch)
+	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "worktree", "add", "-b", branch, featurePath, cloneResult.DefaultBranch)
+
+	svc := &Service{Ctx: &gitx.RepoContext{
+		RepoRoot:      cloneResult.RepoRoot,
+		GitCommonDir:  cloneResult.GitCommonDir,
+		DefaultBranch: cloneResult.DefaultBranch,
+		IncludeFile:   ".worktreeinclude",
+	}}
+
+	return svc, featurePath, branch
+}
