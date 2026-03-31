@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  test:
-    name: test
+  checks:
+    name: checks
     runs-on: ubuntu-latest
     steps:
       - name: checkout
@@ -26,50 +26,11 @@ jobs:
       - name: run tests
         run: go test ./...
 
-  race:
-    name: race
-    runs-on: ubuntu-latest
-    steps:
-      - name: checkout
-        uses: actions/checkout@v4
-
-      - name: setup go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
-
       - name: run race tests
         run: go test -race ./...
 
-  vet:
-    name: vet
-    runs-on: ubuntu-latest
-    steps:
-      - name: checkout
-        uses: actions/checkout@v4
-
-      - name: setup go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
-
       - name: run go vet
         run: go vet ./...
-
-  build:
-    name: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: checkout
-        uses: actions/checkout@v4
-
-      - name: setup go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
 
       - name: build ft
         run: go build -buildvcs=false ./cmd/ft
