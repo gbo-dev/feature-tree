@@ -2,7 +2,10 @@ package gitx
 
 import (
 	"context"
+	"errors"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gbo-dev/feature-tree/internal/testutil"
@@ -81,4 +84,30 @@ func TestCloneRepoBootstrapsTrackingAndInitialWorktree(t *testing.T) {
 
 	// Verifies that tracking config is valid enough for pull to work from the worktree.
 	testutil.RunGit(t, result.WorktreePath, "pull", "--ff-only")
+}
+
+func TestCloneRepoFailsWhenRemoteHeadIsUnset(t *testing.T) {
+	SetCommandContext(context.Background())
+
+	base := t.TempDir()
+	source := filepath.Join(base, "source")
+	testutil.InitRepoWithMain(t, source)
+
+	remote := filepath.Join(base, "origin.git")
+	testutil.RunGit(t, "", "clone", "--bare", source, remote)
+	testutil.RunGit(t, "", "--git-dir", remote, "symbolic-ref", "HEAD", "refs/heads/does-not-exist")
+
+	target := filepath.Join(base, "cloned")
+	_, err := CloneRepo(remote, target)
+	if err == nil {
+		t.Fatalf("CloneRepo expected error when remote HEAD is unset")
+	}
+	if !strings.Contains(err.Error(), "resolve origin/HEAD") {
+		t.Fatalf("CloneRepo error = %q, expected origin/HEAD resolution error", err.Error())
+	}
+
+	_, statErr := os.Stat(target)
+	if !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("CloneRepo should clean up failed target directory, stat err = %v", statErr)
+	}
 }

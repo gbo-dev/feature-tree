@@ -50,8 +50,16 @@ func CloneRepo(url string, dir string) (*CloneResult, error) {
 		return nil, err
 	}
 
-	if _, _, _, err := runCommand("", "git", "--git-dir", gitDir, "fetch", "origin"); err == nil {
-		_, _, _, _ = runCommand("", "git", "--git-dir", gitDir, "remote", "set-head", "origin", "--auto")
+	_, stderr, exitCode, runErr = runCommand("", "git", "--git-dir", gitDir, "fetch", "origin")
+	if err := CommandError("fetch origin refs", stderr, exitCode, runErr, "git fetch origin failed"); err != nil {
+		_ = os.RemoveAll(absDir)
+		return nil, err
+	}
+
+	_, stderr, exitCode, runErr = runCommand("", "git", "--git-dir", gitDir, "remote", "set-head", "origin", "--auto")
+	if err := CommandError("resolve origin/HEAD", stderr, exitCode, runErr, "git remote set-head origin --auto failed"); err != nil {
+		_ = os.RemoveAll(absDir)
+		return nil, fmt.Errorf("%w (ensure the remote default branch/HEAD is configured)", err)
 	}
 
 	defaultBranch, err := detectDefaultBranch(gitDir)
