@@ -82,6 +82,31 @@ func TestEnsureWorktreeSafeToRemoveAllowsBranchAheadOfUpstreamWhenDeletable(t *t
 	}
 }
 
+func TestWorktreeUpstreamRefNoUpstreamReturnsEmpty(t *testing.T) {
+	repo := t.TempDir()
+	testutil.InitRepoWithMain(t, repo)
+
+	upstream, err := worktreeUpstreamRef(repo)
+	if err != nil {
+		t.Fatalf("worktreeUpstreamRef returned error: %v", err)
+	}
+	if upstream != "" {
+		t.Fatalf("worktreeUpstreamRef = %q, want empty upstream", upstream)
+	}
+}
+
+func TestWorktreeUpstreamRefOutsideRepoReturnsError(t *testing.T) {
+	nonRepo := t.TempDir()
+
+	_, err := worktreeUpstreamRef(nonRepo)
+	if err == nil {
+		t.Fatalf("worktreeUpstreamRef expected error outside repository")
+	}
+	if !strings.Contains(err.Error(), "resolve upstream for worktree") {
+		t.Fatalf("worktreeUpstreamRef error = %q, expected upstream resolution context", err.Error())
+	}
+}
+
 func setupServiceWithFeatureWorktree(t *testing.T) (*Service, string, string) {
 	t.Helper()
 

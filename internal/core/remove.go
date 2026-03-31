@@ -244,10 +244,26 @@ func worktreeUpstreamRef(path string) (string, error) {
 	if runErr != nil {
 		return "", gitx.CommandError(fmt.Sprintf("resolve upstream for worktree %s", path), stderr, exitCode, runErr, "git rev-parse failed")
 	}
-	if exitCode != 0 {
+	if exitCode == 0 {
+		return strings.TrimSpace(stdout), nil
+	}
+
+	if isNoUpstreamConfigured(stderr) {
 		return "", nil
 	}
-	return strings.TrimSpace(stdout), nil
+
+	return "", gitx.CommandError(fmt.Sprintf("resolve upstream for worktree %s", path), stderr, exitCode, nil, "git rev-parse failed")
+}
+
+func isNoUpstreamConfigured(stderr string) bool {
+	message := strings.ToLower(strings.TrimSpace(stderr))
+	if message == "" {
+		return false
+	}
+
+	return strings.Contains(message, "no upstream configured") ||
+		strings.Contains(message, "no upstream branch") ||
+		strings.Contains(message, "does not point to a branch")
 }
 
 func (s *Service) revListCount(rangeExpr string) (int, error) {
