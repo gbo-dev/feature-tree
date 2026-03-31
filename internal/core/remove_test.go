@@ -49,6 +49,39 @@ func TestEnsureWorktreeSafeToRemoveAllowsCleanBranchWithoutUpstreamWhenDeletable
 	}
 }
 
+func TestEnsureWorktreeSafeToRemoveRejectsBranchAheadOfUpstreamWhenNotDeletable(t *testing.T) {
+	svc, featurePath, branch := setupServiceWithFeatureWorktree(t)
+
+	testutil.RunGit(t, featurePath, "branch", "--set-upstream-to", "origin/main", branch)
+
+	aheadFile := filepath.Join(featurePath, "AHEAD.txt")
+	if err := os.WriteFile(aheadFile, []byte("ahead\n"), 0o644); err != nil {
+		t.Fatalf("write ahead file: %v", err)
+	}
+	testutil.RunGit(t, featurePath, "add", "AHEAD.txt")
+	testutil.RunGit(t, featurePath, "commit", "-m", "ahead commit")
+
+	err := svc.ensureWorktreeSafeToRemove(featurePath, branch, svc.Ctx.DefaultBranch)
+	if err == nil {
+		t.Fatalf("ensureWorktreeSafeToRemove expected non-deletable ahead-branch error")
+	}
+	if !strings.Contains(err.Error(), "has commits not pushed to origin/main") {
+		t.Fatalf("ahead-branch error = %q, expected upstream push warning", err.Error())
+	}
+}
+
+func TestEnsureWorktreeSafeToRemoveAllowsBranchAheadOfUpstreamWhenDeletable(t *testing.T) {
+	svc, featurePath, branch := setupServiceWithFeatureWorktree(t)
+
+	testutil.RunGit(t, featurePath, "branch", "--set-upstream-to", "origin/main", branch)
+	testutil.RunGit(t, featurePath, "commit", "--allow-empty", "-m", "empty ahead commit")
+
+	err := svc.ensureWorktreeSafeToRemove(featurePath, branch, svc.Ctx.DefaultBranch)
+	if err != nil {
+		t.Fatalf("ensureWorktreeSafeToRemove returned unexpected error: %v", err)
+	}
+}
+
 func setupServiceWithFeatureWorktree(t *testing.T) (*Service, string, string) {
 	t.Helper()
 
