@@ -87,6 +87,44 @@ func TestSwitchWithoutBranchInNonInteractiveSessionFails(t *testing.T) {
 	}
 }
 
+func TestListOutsideGitRepoFails(t *testing.T) {
+	nonRepoPath := t.TempDir()
+
+	_, _, err := runRootCommand(t, nonRepoPath, "list")
+	if err == nil {
+		t.Fatalf("ft list outside a git repository should fail")
+	}
+	if !strings.Contains(err.Error(), "not a git repository") {
+		t.Fatalf("ft list outside repo error = %q, expected git repository error", err.Error())
+	}
+}
+
+func TestSwitchShortcutAtDetachedHeadFails(t *testing.T) {
+	_, mainWorktreePath := setupCLIRepo(t)
+	testutil.RunGit(t, mainWorktreePath, "checkout", "--detach")
+
+	_, _, err := runRootCommand(t, mainWorktreePath, "switch", "@")
+	if err == nil {
+		t.Fatalf("ft switch @ should fail on detached HEAD")
+	}
+	if !strings.Contains(err.Error(), "HEAD is detached; @ is unavailable") {
+		t.Fatalf("ft switch @ detached HEAD error = %q, expected detached HEAD shortcut error", err.Error())
+	}
+}
+
+func TestRemoveWithoutBranchAtDetachedHeadFails(t *testing.T) {
+	_, mainWorktreePath := setupCLIRepo(t)
+	testutil.RunGit(t, mainWorktreePath, "checkout", "--detach")
+
+	_, _, err := runRootCommand(t, mainWorktreePath, "remove")
+	if err == nil {
+		t.Fatalf("ft remove without explicit branch should fail on detached HEAD")
+	}
+	if !strings.Contains(err.Error(), "cannot infer branch from detached HEAD") {
+		t.Fatalf("ft remove detached HEAD error = %q, expected detached HEAD inference error", err.Error())
+	}
+}
+
 func setupCLIRepo(t *testing.T) (string, string) {
 	t.Helper()
 
