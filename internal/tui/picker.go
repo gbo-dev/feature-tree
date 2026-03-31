@@ -9,6 +9,7 @@ import (
 	fzf "github.com/junegunn/fzf/src"
 
 	"github.com/gbo-dev/feature-tree/internal/gitx"
+	"github.com/gbo-dev/feature-tree/internal/textwidth"
 )
 
 var ErrSelectionCancelled = errors.New("selection cancelled")
@@ -52,36 +53,16 @@ const (
 
 const branchColMinWidth = colWidthBranch
 
-// ellipsis marks truncation and renders as one terminal column.
-const ellipsis = "\u2026"
-const ellipsisWidth = 1
-
-func visWidth(s string) int {
-	return len(s) - strings.Count(s, ellipsis)*(3-ellipsisWidth)
-}
-
 func truncatePath(p string, max int) string {
-	if len(p) <= max {
-		return p
-	}
-	return p[:max-ellipsisWidth] + ellipsis
+	return textwidth.Truncate(p, max)
 }
 
 func truncateBranch(b string, max int) string {
-	if len(b) <= max {
-		return b
-	}
-	return b[:max-ellipsisWidth] + ellipsis
+	return textwidth.Truncate(b, max)
 }
 
 func truncateCell(s string, max int) string {
-	if visWidth(s) <= max {
-		return s
-	}
-	if max <= ellipsisWidth {
-		return ellipsis
-	}
-	return s[:max-ellipsisWidth] + ellipsis
+	return textwidth.Truncate(s, max)
 }
 
 type pickerRow struct {
@@ -111,24 +92,24 @@ type rowLayout struct {
 func computeLayout(rows []pickerRow) rowLayout {
 	l := rowLayout{branchWidth: branchColMinWidth}
 	for _, row := range rows {
-		if n := min(len(row.branch), branchDisplayMax); n > l.branchWidth {
+		if n := min(textwidth.Width(row.branch), branchDisplayMax); n > l.branchWidth {
 			l.branchWidth = n
 		}
-		if n := min(len(row.path), pathDisplayMax); n > l.pathWidth {
+		if n := min(textwidth.Width(row.path), pathDisplayMax); n > l.pathWidth {
 			l.pathWidth = n
 		}
 		if row.state != "" {
-			if n := min(len(row.state), stateDisplayMax); n > l.stateWidth {
+			if n := min(textwidth.Width(row.state), stateDisplayMax); n > l.stateWidth {
 				l.stateWidth = n
 			}
 		}
 		if row.relation != "" {
-			if n := min(len(row.relation), relationDisplayMax); n > l.relationWidth {
+			if n := min(textwidth.Width(row.relation), relationDisplayMax); n > l.relationWidth {
 				l.relationWidth = n
 			}
 		}
 		if s := row.commit.Display(commitDisplayMax); s != "" {
-			if n := visWidth(s); n > l.commitWidth {
+			if n := textwidth.Width(s); n > l.commitWidth {
 				l.commitWidth = n
 			}
 		}
@@ -433,16 +414,16 @@ func buildFZFLines(rows []pickerRow, l rowLayout) []string {
 		}
 
 		b := truncateBranch(row.branch, l.branchWidth)
-		branchField := b + strings.Repeat(" ", l.branchWidth-visWidth(b)+2)
+		branchField := b + strings.Repeat(" ", l.branchWidth-textwidth.Width(b)+2)
 
 		var parts []string
 
 		rendered := truncatePath(row.path, l.pathWidth)
-		parts = append(parts, ansiGrey+rendered+ansiReset+strings.Repeat(" ", l.pathWidth-visWidth(rendered)))
+		parts = append(parts, ansiGrey+rendered+ansiReset+strings.Repeat(" ", l.pathWidth-textwidth.Width(rendered)))
 
 		if l.stateWidth > 0 && row.state != "" {
 			st := truncateCell(row.state, l.stateWidth)
-			pad := strings.Repeat(" ", l.stateWidth-visWidth(st))
+			pad := strings.Repeat(" ", l.stateWidth-textwidth.Width(st))
 			if strings.HasPrefix(row.state, "dirty") {
 				parts = append(parts, ansiYellow+st+ansiReset+pad)
 			} else {
@@ -451,16 +432,13 @@ func buildFZFLines(rows []pickerRow, l rowLayout) []string {
 		}
 
 		if l.relationWidth > 0 && row.relation != "" {
-			rel := row.relation
-			if len(rel) > l.relationWidth {
-				rel = rel[:l.relationWidth]
-			}
-			parts = append(parts, ansiGrey+rel+ansiReset+strings.Repeat(" ", l.relationWidth-len(rel)))
+			rel := truncateCell(row.relation, l.relationWidth)
+			parts = append(parts, ansiGrey+rel+ansiReset+strings.Repeat(" ", l.relationWidth-textwidth.Width(rel)))
 		}
 
 		if l.commitWidth > 0 {
 			if s := row.commit.Display(l.commitWidth); s != "" {
-				parts = append(parts, ansiGrey+s+ansiReset+strings.Repeat(" ", l.commitWidth-visWidth(s)))
+				parts = append(parts, ansiGrey+s+ansiReset+strings.Repeat(" ", l.commitWidth-textwidth.Width(s)))
 			}
 		}
 

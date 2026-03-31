@@ -3,12 +3,9 @@ package gitx
 import (
 	"strings"
 	"sync"
+
+	"github.com/gbo-dev/feature-tree/internal/textwidth"
 )
-
-// ellipsis marks truncation and renders as one terminal column.
-const ellipsis = "\u2026"
-
-const ellipsisWidth = 1
 
 const maxConcurrentHeadCommits = 8
 
@@ -25,11 +22,7 @@ func (c CommitInfo) Display(max int) string {
 	if max <= 0 {
 		return ""
 	}
-	subject := c.Subject
-	if len(subject) > max {
-		subject = subject[:max-ellipsisWidth] + ellipsis
-	}
-	return subject
+	return textwidth.Truncate(c.Subject, max)
 }
 
 // HeadCommit returns abbreviated head-commit info for branch.

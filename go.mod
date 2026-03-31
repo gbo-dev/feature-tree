@@ -4,6 +4,8 @@ go 1.24
 
 require (
 	github.com/junegunn/fzf v0.70.0
+	github.com/mattn/go-runewidth v0.0.16
+	github.com/rivo/uniseg v0.4.7
 	github.com/spf13/cobra v1.8.1
 	golang.org/x/term v0.34.0
 )
@@ -16,8 +18,6 @@ require (
 	github.com/junegunn/go-shellwords v0.0.0-20250127100254-2aa3b3277741 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/mattn/go-runewidth v0.0.16 // indirect
-	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	golang.org/x/sys v0.35.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
