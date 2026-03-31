@@ -98,5 +98,5 @@ func detectDefaultBranch(gitCommonDir string) (string, error) {
 		}
 	}
 
-	return "main", nil
+	return "", fmt.Errorf("ft: could not determine default branch: origin/HEAD is unset and none of main, master, trunk exist locally; run 'git --git-dir=%s remote set-head origin --auto' and retry", gitCommonDir)
 }
