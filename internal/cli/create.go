@@ -16,7 +16,7 @@ func newCreateCmd() *cobra.Command {
 		Use:   "create <branch>",
 		Short: "Create a branch worktree",
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-			return completeSwitchBranches(cmd, args, toComplete)
+			return completeCreateBranches(cmd, args, toComplete)
 		},
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 1 {

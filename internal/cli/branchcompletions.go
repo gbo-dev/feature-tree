@@ -62,6 +62,32 @@ func completeSwitchBranches(cmd *cobra.Command, args []string, toComplete string
 	return filterPrefixUniqueSorted(candidates, toComplete), cobra.ShellCompDirectiveNoFileComp
 }
 
+func completeCreateBranches(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	if len(args) > 0 {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	ctx, err := gitx.DiscoverRepoContext(completionContext(cmd))
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	worktreeBranches, err := listWorktreeBranches(completionContext(cmd), ctx)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	localBranches, err := listLocalBranches(completionContext(cmd), ctx)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	candidates := append([]string{}, worktreeBranches...)
+	candidates = append(candidates, localBranches...)
+
+	return filterPrefixUniqueSorted(candidates, toComplete), cobra.ShellCompDirectiveNoFileComp
+}
+
 func completeRemovableWorktreeBranches(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	if len(args) > 0 {
 		return nil, cobra.ShellCompDirectiveNoFileComp
