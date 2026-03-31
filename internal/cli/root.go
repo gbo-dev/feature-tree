@@ -4,12 +4,9 @@ import (
 	"context"
 
 	"github.com/spf13/cobra"
-
-	"github.com/gbo-dev/feature-tree/internal/gitx"
 )
 
 func ExecuteContext(ctx context.Context) error {
-	gitx.SetCommandContext(ctx)
 	root := newRootCmd()
 	return root.ExecuteContext(ctx)
 }

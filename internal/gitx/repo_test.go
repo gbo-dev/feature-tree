@@ -1,6 +1,7 @@
 package gitx
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,7 +18,7 @@ func TestDetectDefaultBranchFallsBackToMainWhenOriginHeadMissing(t *testing.T) {
 	bare := filepath.Join(base, "origin.git")
 	testutil.RunGit(t, "", "clone", "--bare", source, bare)
 
-	got, err := detectDefaultBranch(bare)
+	got, err := detectDefaultBranch(context.Background(), bare)
 	if err != nil {
 		t.Fatalf("detectDefaultBranch returned error: %v", err)
 	}
@@ -42,7 +43,7 @@ func TestDetectDefaultBranchFailsWhenOriginHeadMissingAndNoFallbackBranches(t *t
 	bare := filepath.Join(base, "origin.git")
 	testutil.RunGit(t, "", "clone", "--bare", source, bare)
 
-	_, err := detectDefaultBranch(bare)
+	_, err := detectDefaultBranch(context.Background(), bare)
 	if err == nil {
 		t.Fatalf("detectDefaultBranch expected error when no origin/HEAD and no fallback branches")
 	}

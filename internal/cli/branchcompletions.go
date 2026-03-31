@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"sort"
 	"strings"
 
@@ -9,17 +10,24 @@ import (
 	"github.com/gbo-dev/feature-tree/internal/gitx"
 )
 
-func completeLocalBranchesWithShortcuts(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+func completionContext(cmd *cobra.Command) context.Context {
+	if cmd != nil && cmd.Context() != nil {
+		return cmd.Context()
+	}
+	return context.Background()
+}
+
+func completeLocalBranchesWithShortcuts(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	if len(args) > 0 {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 
-	ctx, err := gitx.DiscoverRepoContext()
+	ctx, err := gitx.DiscoverRepoContext(completionContext(cmd))
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 
-	branches, err := listLocalBranches(ctx)
+	branches, err := listLocalBranches(completionContext(cmd), ctx)
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
@@ -28,22 +36,22 @@ func completeLocalBranchesWithShortcuts(_ *cobra.Command, args []string, toCompl
 	return filterPrefixUniqueSorted(candidates, toComplete), cobra.ShellCompDirectiveNoFileComp
 }
 
-func completeSwitchBranches(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+func completeSwitchBranches(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	if len(args) > 0 {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 
-	ctx, err := gitx.DiscoverRepoContext()
+	ctx, err := gitx.DiscoverRepoContext(completionContext(cmd))
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 
-	worktreeBranches, err := listWorktreeBranches(ctx)
+	worktreeBranches, err := listWorktreeBranches(completionContext(cmd), ctx)
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 
-	localBranches, err := listLocalBranches(ctx)
+	localBranches, err := listLocalBranches(completionContext(cmd), ctx)
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
@@ -54,17 +62,17 @@ func completeSwitchBranches(_ *cobra.Command, args []string, toComplete string) 
 	return filterPrefixUniqueSorted(candidates, toComplete), cobra.ShellCompDirectiveNoFileComp
 }
 
-func completeRemovableWorktreeBranches(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+func completeRemovableWorktreeBranches(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	if len(args) > 0 {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 
-	ctx, err := gitx.DiscoverRepoContext()
+	ctx, err := gitx.DiscoverRepoContext(completionContext(cmd))
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 
-	worktreeBranches, err := listWorktreeBranches(ctx)
+	worktreeBranches, err := listWorktreeBranches(completionContext(cmd), ctx)
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
@@ -81,8 +89,8 @@ func completeRemovableWorktreeBranches(_ *cobra.Command, args []string, toComple
 	return filterPrefixUniqueSorted(filtered, toComplete), cobra.ShellCompDirectiveNoFileComp
 }
 
-func listLocalBranches(ctx *gitx.RepoContext) ([]string, error) {
-	stdout, stderr, exitCode, runErr := gitx.RunGitCommon(ctx, "for-each-ref", "--format=%(refname:short)", "refs/heads")
+func listLocalBranches(commandCtx context.Context, ctx *gitx.RepoContext) ([]string, error) {
+	stdout, stderr, exitCode, runErr := gitx.RunGitCommon(commandCtx, ctx, "for-each-ref", "--format=%(refname:short)", "refs/heads")
 	if err := gitx.CommandError("list local branches for completion", stderr, exitCode, runErr, "git for-each-ref failed"); err != nil {
 		return nil, err
 	}
@@ -98,8 +106,8 @@ func listLocalBranches(ctx *gitx.RepoContext) ([]string, error) {
 	return out, nil
 }
 
-func listWorktreeBranches(ctx *gitx.RepoContext) ([]string, error) {
-	entries, err := gitx.ListWorktrees(ctx)
+func listWorktreeBranches(commandCtx context.Context, ctx *gitx.RepoContext) ([]string, error) {
+	entries, err := gitx.ListWorktrees(commandCtx, ctx)
 	if err != nil {
 		return nil, err
 	}

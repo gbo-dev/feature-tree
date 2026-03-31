@@ -12,7 +12,7 @@ func (s *Service) Switch(branch string, createIfMissing bool, baseBranch string)
 		return nil, err
 	}
 
-	worktrees, err := gitx.ListWorktrees(s.Ctx)
+	worktrees, err := gitx.ListWorktrees(s.CommandCtx, s.Ctx)
 	if err != nil {
 		return nil, err
 	}

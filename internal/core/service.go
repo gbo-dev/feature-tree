@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -8,7 +9,8 @@ import (
 )
 
 type Service struct {
-	Ctx *gitx.RepoContext
+	Ctx        *gitx.RepoContext
+	CommandCtx context.Context
 }
 
 type CreateResult struct {
@@ -37,12 +39,15 @@ type RemoveResult struct {
 	NoDeleteBranch bool
 }
 
-func NewService() (*Service, error) {
-	ctx, err := gitx.DiscoverRepoContext()
+func NewService(commandCtx context.Context) (*Service, error) {
+	repoCtx, err := gitx.DiscoverRepoContext(commandCtx)
 	if err != nil {
 		return nil, err
 	}
-	return &Service{Ctx: ctx}, nil
+	if commandCtx == nil {
+		commandCtx = context.Background()
+	}
+	return &Service{Ctx: repoCtx, CommandCtx: commandCtx}, nil
 }
 
 func (s *Service) ResolveBranchShortcut(input string) (string, error) {
@@ -50,7 +55,7 @@ func (s *Service) ResolveBranchShortcut(input string) (string, error) {
 	case "^":
 		return s.Ctx.DefaultBranch, nil
 	case "@":
-		current, err := gitx.CurrentBranch("")
+		current, err := gitx.CurrentBranch(s.CommandCtx, "")
 		if err != nil {
 			return "", fmt.Errorf("ft: HEAD is detached; @ is unavailable")
 		}

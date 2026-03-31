@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -18,7 +19,7 @@ func (s *Service) RemoveWorktree(branch string, forceWorktree bool, forceBranch 
 		return nil, err
 	}
 
-	worktrees, err := gitx.ListWorktrees(s.Ctx)
+	worktrees, err := gitx.ListWorktrees(s.CommandCtx, s.Ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +49,7 @@ func (s *Service) RemoveWorktree(branch string, forceWorktree bool, forceBranch 
 		NoDeleteBranch: noDeleteBranch,
 	}
 
-	currentBranch, err := gitx.CurrentBranch("")
+	currentBranch, err := gitx.CurrentBranch(s.CommandCtx, "")
 	if err == nil && currentBranch == resolvedBranch {
 		for _, worktree := range worktrees {
 			if worktree.Branch == s.Ctx.DefaultBranch {
@@ -79,7 +80,7 @@ func (s *Service) RemoveWorktree(branch string, forceWorktree bool, forceBranch 
 	}
 	removeArgs = append(removeArgs, target.Path)
 
-	_, stderr, exitCode, runErr := gitx.RunGitCommon(s.Ctx, removeArgs...)
+	_, stderr, exitCode, runErr := gitx.RunGitCommon(s.CommandCtx, s.Ctx, removeArgs...)
 	if err := gitx.CommandError("remove worktree", stderr, exitCode, runErr, "git worktree remove failed"); err != nil {
 		return nil, err
 	}
@@ -94,7 +95,7 @@ func (s *Service) RemoveWorktree(branch string, forceWorktree bool, forceBranch 
 	}
 
 	if deletable {
-		_, stderr, exitCode, runErr = gitx.RunGitCommon(s.Ctx, "branch", "-d", resolvedBranch)
+		_, stderr, exitCode, runErr = gitx.RunGitCommon(s.CommandCtx, s.Ctx, "branch", "-d", resolvedBranch)
 		if err := gitx.CommandError(fmt.Sprintf("delete branch %q", resolvedBranch), stderr, exitCode, runErr, "git branch -d failed"); err != nil {
 			return nil, err
 		}
@@ -103,7 +104,7 @@ func (s *Service) RemoveWorktree(branch string, forceWorktree bool, forceBranch 
 	}
 
 	if forceBranch {
-		_, stderr, exitCode, runErr = gitx.RunGitCommon(s.Ctx, "branch", "-D", resolvedBranch)
+		_, stderr, exitCode, runErr = gitx.RunGitCommon(s.CommandCtx, s.Ctx, "branch", "-D", resolvedBranch)
 		if err := gitx.CommandError(fmt.Sprintf("force delete branch %q", resolvedBranch), stderr, exitCode, runErr, "git branch -D failed"); err != nil {
 			return nil, err
 		}
@@ -116,7 +117,7 @@ func (s *Service) RemoveWorktree(branch string, forceWorktree bool, forceBranch 
 }
 
 func (s *Service) deletionTargetRef() (string, error) {
-	stdout, stderr, exitCode, runErr := gitx.RunGitCommon(s.Ctx, "for-each-ref", "--format=%(upstream:short)", "refs/heads/"+s.Ctx.DefaultBranch)
+	stdout, stderr, exitCode, runErr := gitx.RunGitCommon(s.CommandCtx, s.Ctx, "for-each-ref", "--format=%(upstream:short)", "refs/heads/"+s.Ctx.DefaultBranch)
 	stdout, err := gitx.ExpectSuccess("resolve default branch upstream", stdout, stderr, exitCode, runErr, "failed to resolve default branch upstream")
 	if err != nil {
 		return "", err
@@ -142,7 +143,7 @@ func (s *Service) deletionTargetRef() (string, error) {
 }
 
 func (s *Service) branchDeletable(branch string, target string) (bool, error) {
-	_, stderr, exitCode, runErr := gitx.RunGitCommon(s.Ctx, "merge-base", "--is-ancestor", branch, target)
+	_, stderr, exitCode, runErr := gitx.RunGitCommon(s.CommandCtx, s.Ctx, "merge-base", "--is-ancestor", branch, target)
 	if runErr != nil {
 		return false, gitx.CommandError(fmt.Sprintf("check ancestry for %q and %q", branch, target), stderr, exitCode, runErr, "git merge-base failed")
 	}
@@ -153,7 +154,7 @@ func (s *Service) branchDeletable(branch string, target string) (bool, error) {
 		return false, gitx.CommandError(fmt.Sprintf("check ancestry for %q and %q", branch, target), stderr, exitCode, nil, "git merge-base failed")
 	}
 
-	_, stderr, exitCode, runErr = gitx.RunGitCommon(s.Ctx, "diff", "--quiet", target+"..."+branch)
+	_, stderr, exitCode, runErr = gitx.RunGitCommon(s.CommandCtx, s.Ctx, "diff", "--quiet", target+"..."+branch)
 	if runErr != nil {
 		return false, gitx.CommandError(fmt.Sprintf("compare %q and %q", target, branch), stderr, exitCode, runErr, "git diff failed")
 	}
@@ -164,7 +165,7 @@ func (s *Service) branchDeletable(branch string, target string) (bool, error) {
 		return false, gitx.CommandError(fmt.Sprintf("compare %q and %q", target, branch), stderr, exitCode, nil, "git diff failed")
 	}
 
-	branchTree, stderr, exitCode, runErr := gitx.RunGitCommon(s.Ctx, "rev-parse", "refs/heads/"+branch+"^{tree}")
+	branchTree, stderr, exitCode, runErr := gitx.RunGitCommon(s.CommandCtx, s.Ctx, "rev-parse", "refs/heads/"+branch+"^{tree}")
 	if runErr != nil {
 		return false, gitx.CommandError(fmt.Sprintf("resolve tree for branch %q", branch), stderr, exitCode, runErr, "git rev-parse failed")
 	}
@@ -172,7 +173,7 @@ func (s *Service) branchDeletable(branch string, target string) (bool, error) {
 		return false, nil
 	}
 
-	targetTree, stderr, exitCode, runErr := gitx.RunGitCommon(s.Ctx, "rev-parse", target+"^{tree}")
+	targetTree, stderr, exitCode, runErr := gitx.RunGitCommon(s.CommandCtx, s.Ctx, "rev-parse", target+"^{tree}")
 	if runErr != nil {
 		return false, gitx.CommandError(fmt.Sprintf("resolve tree for target %q", target), stderr, exitCode, runErr, "git rev-parse failed")
 	}
@@ -184,7 +185,7 @@ func (s *Service) branchDeletable(branch string, target string) (bool, error) {
 }
 
 func (s *Service) ensureWorktreeSafeToRemove(path string, branch string, targetRef string) error {
-	clean, err := isWorktreeClean(path)
+	clean, err := isWorktreeClean(s.CommandCtx, path)
 	if err != nil {
 		return err
 	}
@@ -192,7 +193,7 @@ func (s *Service) ensureWorktreeSafeToRemove(path string, branch string, targetR
 		return fmt.Errorf("ft: worktree is dirty: %s (commit/stash/remove changes first, or use --force-worktree)", path)
 	}
 
-	upstream, err := worktreeUpstreamRef(path)
+	upstream, err := worktreeUpstreamRef(s.CommandCtx, path)
 	if err != nil {
 		return err
 	}
@@ -207,7 +208,7 @@ func (s *Service) ensureWorktreeSafeToRemove(path string, branch string, targetR
 		return fmt.Errorf("ft: branch %q has no upstream tracking branch and differs from %s; push first, or use --force-worktree", branch, targetRef)
 	}
 
-	ahead, stderr, exitCode, runErr := gitx.RunGit(path, "rev-list", "--count", upstream+"..HEAD")
+	ahead, stderr, exitCode, runErr := gitx.RunGit(s.CommandCtx, path, "rev-list", "--count", upstream+"..HEAD")
 	if err := gitx.CommandError(fmt.Sprintf("compare branch %q to upstream %q", branch, upstream), stderr, exitCode, runErr, "failed to compare branch to upstream"); err != nil {
 		return err
 	}
@@ -231,16 +232,16 @@ func (s *Service) ensureWorktreeSafeToRemove(path string, branch string, targetR
 	return nil
 }
 
-func isWorktreeClean(path string) (bool, error) {
-	stdout, stderr, exitCode, runErr := gitx.RunGit(path, "status", "--porcelain", "--untracked-files=normal")
+func isWorktreeClean(commandCtx context.Context, path string) (bool, error) {
+	stdout, stderr, exitCode, runErr := gitx.RunGit(commandCtx, path, "status", "--porcelain", "--untracked-files=normal")
 	if err := gitx.CommandError("inspect worktree clean state", stderr, exitCode, runErr, "git status failed"); err != nil {
 		return false, err
 	}
 	return strings.TrimSpace(stdout) == "", nil
 }
 
-func worktreeUpstreamRef(path string) (string, error) {
-	stdout, stderr, exitCode, runErr := gitx.RunGit(path, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}")
+func worktreeUpstreamRef(commandCtx context.Context, path string) (string, error) {
+	stdout, stderr, exitCode, runErr := gitx.RunGit(commandCtx, path, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}")
 	if runErr != nil {
 		return "", gitx.CommandError(fmt.Sprintf("resolve upstream for worktree %s", path), stderr, exitCode, runErr, "git rev-parse failed")
 	}
@@ -267,7 +268,7 @@ func isNoUpstreamConfigured(stderr string) bool {
 }
 
 func (s *Service) revListCount(rangeExpr string) (int, error) {
-	stdout, stderr, exitCode, runErr := gitx.RunGitCommon(s.Ctx, "rev-list", "--count", rangeExpr)
+	stdout, stderr, exitCode, runErr := gitx.RunGitCommon(s.CommandCtx, s.Ctx, "rev-list", "--count", rangeExpr)
 	if err := gitx.CommandError(fmt.Sprintf("count revisions for %s", rangeExpr), stderr, exitCode, runErr, "failed to count revisions"); err != nil {
 		return 0, err
 	}

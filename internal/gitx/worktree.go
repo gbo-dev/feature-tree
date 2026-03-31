@@ -1,6 +1,7 @@
 package gitx
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"strconv"
@@ -25,8 +26,8 @@ func RelativePath(wtPath, fromPath string) string {
 	return "../" + filepath.Base(wtPath)
 }
 
-func ListWorktrees(ctx *RepoContext) ([]Worktree, error) {
-	stdout, stderr, exitCode, runErr := RunGitCommon(ctx, "worktree", "list", "--porcelain")
+func ListWorktrees(commandCtx context.Context, ctx *RepoContext) ([]Worktree, error) {
+	stdout, stderr, exitCode, runErr := RunGitCommon(commandCtx, ctx, "worktree", "list", "--porcelain")
 	if err := CommandError("list worktrees", stderr, exitCode, runErr, "git worktree list failed"); err != nil {
 		return nil, err
 	}
@@ -70,16 +71,16 @@ func ListWorktrees(ctx *RepoContext) ([]Worktree, error) {
 	return entries, nil
 }
 
-func CurrentBranch(dir string) (string, error) {
-	stdout, stderr, exitCode, runErr := RunGit(dir, "symbolic-ref", "--quiet", "--short", "HEAD")
+func CurrentBranch(commandCtx context.Context, dir string) (string, error) {
+	stdout, stderr, exitCode, runErr := RunGit(commandCtx, dir, "symbolic-ref", "--quiet", "--short", "HEAD")
 	if err := CommandError("resolve current branch", stderr, exitCode, runErr, "HEAD is detached"); err != nil {
 		return "", err
 	}
 	return strings.TrimSpace(stdout), nil
 }
 
-func BranchExistsLocal(ctx *RepoContext, branch string) (bool, error) {
-	_, stderr, exitCode, runErr := RunGitCommon(ctx, "show-ref", "--verify", "--quiet", "refs/heads/"+branch)
+func BranchExistsLocal(commandCtx context.Context, ctx *RepoContext, branch string) (bool, error) {
+	_, stderr, exitCode, runErr := RunGitCommon(commandCtx, ctx, "show-ref", "--verify", "--quiet", "refs/heads/"+branch)
 	if exitCode == 0 {
 		return true, nil
 	}
@@ -92,8 +93,8 @@ func BranchExistsLocal(ctx *RepoContext, branch string) (bool, error) {
 	return false, nil
 }
 
-func DirtySymbols(path string) (string, error) {
-	stdout, stderr, exitCode, runErr := RunGit(path, "status", "--porcelain", "--untracked-files=normal")
+func DirtySymbols(commandCtx context.Context, path string) (string, error) {
+	stdout, stderr, exitCode, runErr := RunGit(commandCtx, path, "status", "--porcelain", "--untracked-files=normal")
 	if err := CommandError("inspect dirty state", stderr, exitCode, runErr, "git status failed"); err != nil {
 		return "", err
 	}
@@ -147,12 +148,12 @@ func DirtyState(symbols string) string {
 	return fmt.Sprintf("dirty (%s)", symbols)
 }
 
-func BranchRelation(ctx *RepoContext, branch string) (string, error) {
+func BranchRelation(commandCtx context.Context, ctx *RepoContext, branch string) (string, error) {
 	if branch == ctx.DefaultBranch {
 		return "-", nil
 	}
 
-	stdout, stderr, exitCode, runErr := RunGitCommon(ctx, "rev-list", "--left-right", "--count", ctx.DefaultBranch+"..."+branch)
+	stdout, stderr, exitCode, runErr := RunGitCommon(commandCtx, ctx, "rev-list", "--left-right", "--count", ctx.DefaultBranch+"..."+branch)
 	if runErr != nil {
 		return "", CommandError(fmt.Sprintf("compute branch relation for %q", branch), stderr, exitCode, runErr, "git rev-list failed")
 	}

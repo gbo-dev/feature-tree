@@ -7,47 +7,29 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
-	"sync/atomic"
 	"time"
 )
 
 const defaultCommandTimeout = 5 * time.Minute
 
-var commandContext atomic.Value
-
-type commandContextHolder struct {
-	ctx context.Context
-}
-
-func init() {
-	commandContext.Store(commandContextHolder{ctx: context.Background()})
-}
-
-func SetCommandContext(ctx context.Context) {
-	if ctx == nil {
-		ctx = context.Background()
+func normalizeCommandContext(ctx context.Context) context.Context {
+	if ctx != nil {
+		return ctx
 	}
-	commandContext.Store(commandContextHolder{ctx: ctx})
+	return context.Background()
 }
 
-func RunGit(dir string, args ...string) (stdout string, stderr string, exitCode int, err error) {
-	return runCommand(dir, "git", args...)
+func RunGit(ctx context.Context, dir string, args ...string) (stdout string, stderr string, exitCode int, err error) {
+	return runCommand(normalizeCommandContext(ctx), dir, "git", args...)
 }
 
-func RunGitCommon(ctx *RepoContext, args ...string) (stdout string, stderr string, exitCode int, err error) {
-	fullArgs := append([]string{"--git-dir", ctx.GitCommonDir}, args...)
-	return runCommand("", "git", fullArgs...)
+func RunGitCommon(commandCtx context.Context, repoCtx *RepoContext, args ...string) (stdout string, stderr string, exitCode int, err error) {
+	fullArgs := append([]string{"--git-dir", repoCtx.GitCommonDir}, args...)
+	return runCommand(normalizeCommandContext(commandCtx), "", "git", fullArgs...)
 }
 
-func runCommand(dir string, name string, args ...string) (stdout string, stderr string, exitCode int, err error) {
-	baseCtx := context.Background()
-	if loaded := commandContext.Load(); loaded != nil {
-		if holder, ok := loaded.(commandContextHolder); ok && holder.ctx != nil {
-			baseCtx = holder.ctx
-		}
-	}
-
-	ctx, cancel := context.WithTimeout(baseCtx, defaultCommandTimeout)
+func runCommand(commandCtx context.Context, dir string, name string, args ...string) (stdout string, stderr string, exitCode int, err error) {
+	ctx, cancel := context.WithTimeout(normalizeCommandContext(commandCtx), defaultCommandTimeout)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, name, args...)

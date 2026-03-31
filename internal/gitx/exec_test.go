@@ -9,12 +9,8 @@ import (
 func TestRunGitHonorsCanceledCommandContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	SetCommandContext(ctx)
-	t.Cleanup(func() {
-		SetCommandContext(context.Background())
-	})
 
-	_, _, exitCode, err := RunGit("", "rev-parse", "--git-dir")
+	_, _, exitCode, err := RunGit(ctx, "", "rev-parse", "--git-dir")
 	if err == nil {
 		t.Fatalf("RunGit expected canceled context error")
 	}

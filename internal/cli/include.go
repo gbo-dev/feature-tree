@@ -24,7 +24,7 @@ func newIncludeCmd() *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			svc, err := core.NewService()
+			svc, err := core.NewService(cmd.Context())
 			if err != nil {
 				return err
 			}
@@ -40,7 +40,7 @@ func newIncludeCmd() *cobra.Command {
 
 			to := toBranch
 			if strings.TrimSpace(to) == "" {
-				to, err = gitx.CurrentBranch("")
+				to, err = gitx.CurrentBranch(cmd.Context(), "")
 				if err != nil {
 					return fmt.Errorf("ft: cannot infer destination branch from detached HEAD")
 				}

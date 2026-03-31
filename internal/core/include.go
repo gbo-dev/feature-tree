@@ -14,7 +14,7 @@ import (
 )
 
 func (s *Service) CopyIncludeBetweenBranches(fromBranch string, toBranch string) error {
-	worktrees, err := gitx.ListWorktrees(s.Ctx)
+	worktrees, err := gitx.ListWorktrees(s.CommandCtx, s.Ctx)
 	if err != nil {
 		return err
 	}

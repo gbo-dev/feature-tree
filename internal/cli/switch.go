@@ -31,7 +31,7 @@ func newSwitchCmd() *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			svc, err := core.NewService()
+			svc, err := core.NewService(cmd.Context())
 			if err != nil {
 				return err
 			}
@@ -40,14 +40,14 @@ func newSwitchCmd() *cobra.Command {
 			if len(args) == 1 {
 				branch = args[0]
 			} else {
-				entries, err := gitx.ListWorktrees(svc.Ctx)
+				entries, err := gitx.ListWorktrees(cmd.Context(), svc.Ctx)
 				if err != nil {
 					return err
 				}
 
-				current, _ := gitx.CurrentBranch("")
+				current, _ := gitx.CurrentBranch(cmd.Context(), "")
 				if term.IsTerminal(int(os.Stdin.Fd())) {
-					picked, pickErr := tui.PickSwitchBranch(entries, current, svc.Ctx)
+					picked, pickErr := tui.PickSwitchBranch(cmd.Context(), entries, current, svc.Ctx)
 					if pickErr != nil {
 						if errors.Is(pickErr, tui.ErrSelectionCancelled) {
 							return fmt.Errorf("ft: selection cancelled")

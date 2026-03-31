@@ -1,6 +1,7 @@
 package gitx
 
 import (
+	"context"
 	"strings"
 	"sync"
 
@@ -26,8 +27,8 @@ func (c CommitInfo) Display(max int) string {
 }
 
 // HeadCommit returns abbreviated head-commit info for branch.
-func HeadCommit(ctx *RepoContext, branch string) CommitInfo {
-	out, stderr, exitCode, runErr := RunGitCommon(ctx, "log", "-1", "--abbrev=4", "--format=%h\t%s", branch)
+func HeadCommit(commandCtx context.Context, ctx *RepoContext, branch string) CommitInfo {
+	out, stderr, exitCode, runErr := RunGitCommon(commandCtx, ctx, "log", "-1", "--abbrev=4", "--format=%h\t%s", branch)
 	if err := CommandError("read branch head commit", stderr, exitCode, runErr, "git log failed"); err != nil || out == "" {
 		return CommitInfo{}
 	}
@@ -42,7 +43,7 @@ func HeadCommit(ctx *RepoContext, branch string) CommitInfo {
 }
 
 // FetchCommitsParallel returns head commits for branches in input order.
-func FetchCommitsParallel(ctx *RepoContext, branches []string) []CommitInfo {
+func FetchCommitsParallel(commandCtx context.Context, ctx *RepoContext, branches []string) []CommitInfo {
 	results := make([]CommitInfo, len(branches))
 	if len(branches) == 0 {
 		return results
@@ -61,7 +62,7 @@ func FetchCommitsParallel(ctx *RepoContext, branches []string) []CommitInfo {
 		go func(idx int, branch string) {
 			defer wg.Done()
 			defer func() { <-sem }()
-			results[idx] = HeadCommit(ctx, branch)
+			results[idx] = HeadCommit(commandCtx, ctx, branch)
 		}(i, b)
 	}
 	wg.Wait()

@@ -23,7 +23,7 @@ func (s *Service) CreateWorktree(branch string, baseBranch string) (*CreateResul
 		return nil, err
 	}
 
-	worktrees, err := gitx.ListWorktrees(s.Ctx)
+	worktrees, err := gitx.ListWorktrees(s.CommandCtx, s.Ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -47,18 +47,18 @@ func (s *Service) CreateWorktree(branch string, baseBranch string) (*CreateResul
 		return nil, fmt.Errorf("ft: inspect target path: %w", err)
 	}
 
-	branchExists, err := gitx.BranchExistsLocal(s.Ctx, branch)
+	branchExists, err := gitx.BranchExistsLocal(s.CommandCtx, s.Ctx, branch)
 	if err != nil {
 		return nil, err
 	}
 
 	if branchExists {
-		_, stderr, exitCode, runErr := gitx.RunGitCommon(s.Ctx, "worktree", "add", worktreePath, branch)
+		_, stderr, exitCode, runErr := gitx.RunGitCommon(s.CommandCtx, s.Ctx, "worktree", "add", worktreePath, branch)
 		if err := gitx.CommandError("create worktree", stderr, exitCode, runErr, "git worktree add failed"); err != nil {
 			return nil, err
 		}
 	} else {
-		baseExists, err := gitx.BranchExistsLocal(s.Ctx, resolvedBaseBranch)
+		baseExists, err := gitx.BranchExistsLocal(s.CommandCtx, s.Ctx, resolvedBaseBranch)
 		if err != nil {
 			return nil, err
 		}
@@ -66,7 +66,7 @@ func (s *Service) CreateWorktree(branch string, baseBranch string) (*CreateResul
 			return nil, fmt.Errorf("ft: base branch not found locally: %s", resolvedBaseBranch)
 		}
 
-		_, stderr, exitCode, runErr := gitx.RunGitCommon(s.Ctx, "worktree", "add", "-b", branch, worktreePath, resolvedBaseBranch)
+		_, stderr, exitCode, runErr := gitx.RunGitCommon(s.CommandCtx, s.Ctx, "worktree", "add", "-b", branch, worktreePath, resolvedBaseBranch)
 		if err := gitx.CommandError("create worktree", stderr, exitCode, runErr, "git worktree add failed"); err != nil {
 			return nil, err
 		}

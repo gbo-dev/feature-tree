@@ -24,7 +24,7 @@ func newSquashCmd() *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			svc, err := core.NewService()
+			svc, err := core.NewService(cmd.Context())
 			if err != nil {
 				return err
 			}
@@ -38,7 +38,7 @@ func newSquashCmd() *cobra.Command {
 				return err
 			}
 
-			current, err := gitx.CurrentBranch("")
+			current, err := gitx.CurrentBranch(cmd.Context(), "")
 			if err != nil {
 				return fmt.Errorf("ft: cannot squash on detached HEAD")
 			}
@@ -46,7 +46,7 @@ func newSquashCmd() *cobra.Command {
 				return fmt.Errorf("ft: base branch and current branch are the same")
 			}
 
-			baseExists, err := gitx.BranchExistsLocal(svc.Ctx, base)
+			baseExists, err := gitx.BranchExistsLocal(cmd.Context(), svc.Ctx, base)
 			if err != nil {
 				return err
 			}
@@ -54,7 +54,7 @@ func newSquashCmd() *cobra.Command {
 				return fmt.Errorf("ft: base branch not found locally: %s", base)
 			}
 
-			dirtySymbols, err := gitx.DirtySymbols(".")
+			dirtySymbols, err := gitx.DirtySymbols(cmd.Context(), ".")
 			if err != nil {
 				return err
 			}
@@ -62,7 +62,7 @@ func newSquashCmd() *cobra.Command {
 				return fmt.Errorf("ft: working tree must be clean before squash")
 			}
 
-			countOut, stderr, exitCode, runErr := gitx.RunGitCommon(svc.Ctx, "rev-list", "--count", base+".."+current)
+			countOut, stderr, exitCode, runErr := gitx.RunGitCommon(cmd.Context(), svc.Ctx, "rev-list", "--count", base+".."+current)
 			countOut, err = gitx.ExpectSuccess("count commits for squash", countOut, stderr, exitCode, runErr, "failed to count commits")
 			if err != nil {
 				return err
@@ -76,7 +76,7 @@ func newSquashCmd() *cobra.Command {
 				return fmt.Errorf("ft: need at least 2 commits ahead of %s to squash", base)
 			}
 
-			mergeBase, stderr, exitCode, runErr := gitx.RunGitCommon(svc.Ctx, "merge-base", base, current)
+			mergeBase, stderr, exitCode, runErr := gitx.RunGitCommon(cmd.Context(), svc.Ctx, "merge-base", base, current)
 			mergeBase, err = gitx.ExpectSuccess("find merge-base", mergeBase, stderr, exitCode, runErr, "no merge-base found")
 			if err != nil {
 				return err
@@ -85,7 +85,7 @@ func newSquashCmd() *cobra.Command {
 				return fmt.Errorf("ft: find merge-base: no merge-base found")
 			}
 
-			logOut, stderr, exitCode, runErr := gitx.RunGitCommon(svc.Ctx, "log", "--format=%s", "--reverse", base+".."+current)
+			logOut, stderr, exitCode, runErr := gitx.RunGitCommon(cmd.Context(), svc.Ctx, "log", "--format=%s", "--reverse", base+".."+current)
 			logOut, err = gitx.ExpectSuccess("list commits for squash", logOut, stderr, exitCode, runErr, "failed to list commits")
 			if err != nil {
 				return err
@@ -110,12 +110,12 @@ func newSquashCmd() *cobra.Command {
 			_, _ = tmpFile.WriteString(strings.Join(lines, "\n") + "\n")
 			_ = tmpFile.Close()
 
-			_, stderr, exitCode, runErr = gitx.RunGit("", "reset", "--soft", strings.TrimSpace(mergeBase))
+			_, stderr, exitCode, runErr = gitx.RunGit(cmd.Context(), "", "reset", "--soft", strings.TrimSpace(mergeBase))
 			if err := gitx.CommandError("reset branch for squash", stderr, exitCode, runErr, "git reset failed"); err != nil {
 				return err
 			}
 
-			_, stderr, exitCode, runErr = gitx.RunGit("", "commit", "--file", tmpPath)
+			_, stderr, exitCode, runErr = gitx.RunGit(cmd.Context(), "", "commit", "--file", tmpPath)
 			if err := gitx.CommandError("create squashed commit", stderr, exitCode, runErr, "git commit failed"); err != nil {
 				return err
 			}

@@ -30,7 +30,7 @@ func newRemoveCmd() *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			svc, err := core.NewService()
+			svc, err := core.NewService(cmd.Context())
 			if err != nil {
 				return err
 			}
@@ -39,7 +39,7 @@ func newRemoveCmd() *cobra.Command {
 			if len(args) == 1 {
 				branch = args[0]
 			} else {
-				current, currentErr := gitx.CurrentBranch("")
+				current, currentErr := gitx.CurrentBranch(cmd.Context(), "")
 				if currentErr != nil {
 					return fmt.Errorf("ft: cannot infer branch from detached HEAD")
 				}
@@ -47,11 +47,11 @@ func newRemoveCmd() *cobra.Command {
 				if current != svc.Ctx.DefaultBranch {
 					branch = current
 				} else if term.IsTerminal(int(os.Stdin.Fd())) {
-					entries, err := gitx.ListWorktrees(svc.Ctx)
+					entries, err := gitx.ListWorktrees(cmd.Context(), svc.Ctx)
 					if err != nil {
 						return err
 					}
-					picked, pickErr := tui.PickRemoveBranch(entries, current, svc.Ctx)
+					picked, pickErr := tui.PickRemoveBranch(cmd.Context(), entries, current, svc.Ctx)
 					if pickErr != nil {
 						if errors.Is(pickErr, tui.ErrSelectionCancelled) {
 							return fmt.Errorf("ft: selection cancelled")

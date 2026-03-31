@@ -25,7 +25,7 @@ func newCloneCmd() *cobra.Command {
 				dir = args[1]
 			}
 
-			result, err := gitx.CloneRepo(url, dir)
+			result, err := gitx.CloneRepo(cmd.Context(), url, dir)
 			if err != nil {
 				return err
 			}

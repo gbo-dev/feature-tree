@@ -42,7 +42,7 @@ func TestFindWorktreePath(t *testing.T) {
 }
 
 func TestResolveBranchShortcutDefaultBranch(t *testing.T) {
-	svc := &Service{Ctx: &gitx.RepoContext{DefaultBranch: "main"}}
+	svc := &Service{Ctx: &gitx.RepoContext{DefaultBranch: "main"}, CommandCtx: context.Background()}
 
 	got, err := svc.ResolveBranchShortcut("^")
 	if err != nil {
@@ -54,13 +54,11 @@ func TestResolveBranchShortcutDefaultBranch(t *testing.T) {
 }
 
 func TestResolveBranchShortcutCurrentBranch(t *testing.T) {
-	gitx.SetCommandContext(context.Background())
-
 	repo := t.TempDir()
 	testutil.InitRepoWithMain(t, repo)
 	testutil.Chdir(t, repo)
 
-	svc := &Service{Ctx: &gitx.RepoContext{DefaultBranch: "main"}}
+	svc := &Service{Ctx: &gitx.RepoContext{DefaultBranch: "main"}, CommandCtx: context.Background()}
 	got, err := svc.ResolveBranchShortcut("@")
 	if err != nil {
 		t.Fatalf("ResolveBranchShortcut(@) returned error: %v", err)
@@ -71,8 +69,6 @@ func TestResolveBranchShortcutCurrentBranch(t *testing.T) {
 }
 
 func TestResolveBranchShortcutDetachedHead(t *testing.T) {
-	gitx.SetCommandContext(context.Background())
-
 	repo := t.TempDir()
 	testutil.InitRepoWithMain(t, repo)
 	testutil.Chdir(t, repo)
@@ -80,7 +76,7 @@ func TestResolveBranchShortcutDetachedHead(t *testing.T) {
 	head := testutil.RunGit(t, repo, "rev-parse", "HEAD")
 	testutil.RunGit(t, repo, "checkout", "--detach", head)
 
-	svc := &Service{Ctx: &gitx.RepoContext{DefaultBranch: "main"}}
+	svc := &Service{Ctx: &gitx.RepoContext{DefaultBranch: "main"}, CommandCtx: context.Background()}
 	_, err := svc.ResolveBranchShortcut("@")
 	if err == nil {
 		t.Fatalf("ResolveBranchShortcut(@) expected error on detached HEAD")

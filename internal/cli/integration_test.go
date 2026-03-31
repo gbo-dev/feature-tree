@@ -165,8 +165,6 @@ func TestRemoveAtShortcutAtDetachedHeadFails(t *testing.T) {
 func setupCLIRepo(t *testing.T) (string, string) {
 	t.Helper()
 
-	gitx.SetCommandContext(context.Background())
-
 	basePath := t.TempDir()
 	sourcePath := filepath.Join(basePath, "source")
 	testutil.InitRepoWithMain(t, sourcePath)
@@ -175,7 +173,7 @@ func setupCLIRepo(t *testing.T) (string, string) {
 	testutil.RunGit(t, "", "clone", "--bare", sourcePath, remotePath)
 
 	targetPath := filepath.Join(basePath, "repo")
-	cloneResult, err := gitx.CloneRepo(remotePath, targetPath)
+	cloneResult, err := gitx.CloneRepo(context.Background(), remotePath, targetPath)
 	if err != nil {
 		t.Fatalf("CloneRepo failed: %v", err)
 	}
@@ -187,7 +185,6 @@ func runRootCommand(t *testing.T, cwd string, args ...string) (string, string, e
 	t.Helper()
 
 	ctx := context.Background()
-	gitx.SetCommandContext(ctx)
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer

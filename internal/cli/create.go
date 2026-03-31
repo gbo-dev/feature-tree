@@ -25,7 +25,7 @@ func newCreateCmd() *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			svc, err := core.NewService()
+			svc, err := core.NewService(cmd.Context())
 			if err != nil {
 				return err
 			}

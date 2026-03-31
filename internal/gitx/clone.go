@@ -1,6 +1,7 @@
 package gitx
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -16,7 +17,9 @@ type CloneResult struct {
 
 // CloneRepo sets up a bare-in-.git repository from a remote URL and creates
 // the initial worktree for the detected default branch.
-func CloneRepo(url string, dir string) (*CloneResult, error) {
+func CloneRepo(commandCtx context.Context, url string, dir string) (*CloneResult, error) {
+	commandCtx = normalizeCommandContext(commandCtx)
+
 	if dir == "" {
 		dir = repoNameFromURL(url)
 	}
@@ -35,7 +38,7 @@ func CloneRepo(url string, dir string) (*CloneResult, error) {
 
 	gitDir := filepath.Join(absDir, ".git")
 
-	_, stderr, exitCode, runErr := runCommand("", "git", "clone", "--bare", url, gitDir)
+	_, stderr, exitCode, runErr := runCommand(commandCtx, "", "git", "clone", "--bare", url, gitDir)
 	if err := CommandError("clone repository", stderr, exitCode, runErr, "git clone failed"); err != nil {
 		_ = os.RemoveAll(absDir)
 		return nil, err
@@ -43,26 +46,26 @@ func CloneRepo(url string, dir string) (*CloneResult, error) {
 
 	// Bare clones omit this refspec; without it, remote-tracking refs stay stale
 	// and origin/HEAD cannot be resolved reliably.
-	_, stderr, exitCode, runErr = runCommand("", "git", "--git-dir", gitDir, "config",
+	_, stderr, exitCode, runErr = runCommand(commandCtx, "", "git", "--git-dir", gitDir, "config",
 		"remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
 	if err := CommandError("configure remote fetch refspec", stderr, exitCode, runErr, "git config failed"); err != nil {
 		_ = os.RemoveAll(absDir)
 		return nil, err
 	}
 
-	_, stderr, exitCode, runErr = runCommand("", "git", "--git-dir", gitDir, "fetch", "origin")
+	_, stderr, exitCode, runErr = runCommand(commandCtx, "", "git", "--git-dir", gitDir, "fetch", "origin")
 	if err := CommandError("fetch origin refs", stderr, exitCode, runErr, "git fetch origin failed"); err != nil {
 		_ = os.RemoveAll(absDir)
 		return nil, err
 	}
 
-	_, stderr, exitCode, runErr = runCommand("", "git", "--git-dir", gitDir, "remote", "set-head", "origin", "--auto")
+	_, stderr, exitCode, runErr = runCommand(commandCtx, "", "git", "--git-dir", gitDir, "remote", "set-head", "origin", "--auto")
 	if err := CommandError("resolve origin/HEAD", stderr, exitCode, runErr, "git remote set-head origin --auto failed"); err != nil {
 		_ = os.RemoveAll(absDir)
 		return nil, fmt.Errorf("%w (ensure the remote default branch/HEAD is configured)", err)
 	}
 
-	defaultBranch, err := detectDefaultBranch(gitDir)
+	defaultBranch, err := detectDefaultBranch(commandCtx, gitDir)
 	if err != nil {
 		_ = os.RemoveAll(absDir)
 		return nil, fmt.Errorf("ft: detect default branch: %w", err)
@@ -74,7 +77,7 @@ func CloneRepo(url string, dir string) (*CloneResult, error) {
 		{"--git-dir", gitDir, "config", "branch." + defaultBranch + ".merge", "refs/heads/" + defaultBranch},
 	}
 	for _, args := range trackingArgs {
-		_, stderr, exitCode, runErr := runCommand("", "git", args...)
+		_, stderr, exitCode, runErr := runCommand(commandCtx, "", "git", args...)
 		if err := CommandError("configure default branch tracking", stderr, exitCode, runErr, "git config failed"); err != nil {
 			_ = os.RemoveAll(absDir)
 			return nil, err
@@ -82,7 +85,7 @@ func CloneRepo(url string, dir string) (*CloneResult, error) {
 	}
 
 	worktreePath := filepath.Join(absDir, defaultBranch)
-	_, stderr, exitCode, runErr = runCommand("", "git", "--git-dir", gitDir, "worktree", "add", worktreePath, defaultBranch)
+	_, stderr, exitCode, runErr = runCommand(commandCtx, "", "git", "--git-dir", gitDir, "worktree", "add", worktreePath, defaultBranch)
 	if err := CommandError("create initial worktree", stderr, exitCode, runErr, "git worktree add failed"); err != nil {
 		_ = os.RemoveAll(absDir)
 		return nil, err

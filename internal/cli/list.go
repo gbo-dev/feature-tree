@@ -13,18 +13,18 @@ func newListCmd() *cobra.Command {
 		Use:   "list",
 		Short: "List worktrees with status indicators",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			svc, err := core.NewService()
+			svc, err := core.NewService(cmd.Context())
 			if err != nil {
 				return err
 			}
 
-			entries, err := gitx.ListWorktrees(svc.Ctx)
+			entries, err := gitx.ListWorktrees(cmd.Context(), svc.Ctx)
 			if err != nil {
 				return err
 			}
 
-			current, _ := gitx.CurrentBranch("")
-			return tui.PrintWorktreeList(entries, current, svc.Ctx, cmd.OutOrStdout())
+			current, _ := gitx.CurrentBranch(cmd.Context(), "")
+			return tui.PrintWorktreeList(cmd.Context(), entries, current, svc.Ctx, cmd.OutOrStdout())
 		},
 	}
 }

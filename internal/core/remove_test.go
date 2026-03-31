@@ -86,7 +86,7 @@ func TestWorktreeUpstreamRefNoUpstreamReturnsEmpty(t *testing.T) {
 	repo := t.TempDir()
 	testutil.InitRepoWithMain(t, repo)
 
-	upstream, err := worktreeUpstreamRef(repo)
+	upstream, err := worktreeUpstreamRef(context.Background(), repo)
 	if err != nil {
 		t.Fatalf("worktreeUpstreamRef returned error: %v", err)
 	}
@@ -98,7 +98,7 @@ func TestWorktreeUpstreamRefNoUpstreamReturnsEmpty(t *testing.T) {
 func TestWorktreeUpstreamRefOutsideRepoReturnsError(t *testing.T) {
 	nonRepo := t.TempDir()
 
-	_, err := worktreeUpstreamRef(nonRepo)
+	_, err := worktreeUpstreamRef(context.Background(), nonRepo)
 	if err == nil {
 		t.Fatalf("worktreeUpstreamRef expected error outside repository")
 	}
@@ -110,8 +110,6 @@ func TestWorktreeUpstreamRefOutsideRepoReturnsError(t *testing.T) {
 func setupServiceWithFeatureWorktree(t *testing.T) (*Service, string, string) {
 	t.Helper()
 
-	gitx.SetCommandContext(context.Background())
-
 	base := t.TempDir()
 	source := filepath.Join(base, "source")
 	testutil.InitRepoWithMain(t, source)
@@ -120,7 +118,7 @@ func setupServiceWithFeatureWorktree(t *testing.T) (*Service, string, string) {
 	testutil.RunGit(t, "", "clone", "--bare", source, remote)
 
 	target := filepath.Join(base, "repo")
-	cloneResult, err := gitx.CloneRepo(remote, target)
+	cloneResult, err := gitx.CloneRepo(context.Background(), remote, target)
 	if err != nil {
 		t.Fatalf("CloneRepo failed: %v", err)
 	}
@@ -134,7 +132,7 @@ func setupServiceWithFeatureWorktree(t *testing.T) (*Service, string, string) {
 		GitCommonDir:  cloneResult.GitCommonDir,
 		DefaultBranch: cloneResult.DefaultBranch,
 		IncludeFile:   ".worktreeinclude",
-	}}
+	}, CommandCtx: context.Background()}
 
 	return svc, featurePath, branch
 }

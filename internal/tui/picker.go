@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -189,22 +190,22 @@ func currentWorktreePath(entries []gitx.Worktree, currentBranch string) string {
 	return ""
 }
 
-func PickSwitchBranch(entries []gitx.Worktree, currentBranch string, ctx *gitx.RepoContext) (string, error) {
+func PickSwitchBranch(commandCtx context.Context, entries []gitx.Worktree, currentBranch string, ctx *gitx.RepoContext) (string, error) {
 	branches := make([]string, len(entries))
 	for i, worktree := range entries {
 		branches[i] = worktree.Branch
 	}
-	commits := gitx.FetchCommitsParallel(ctx, branches)
+	commits := gitx.FetchCommitsParallel(commandCtx, ctx, branches)
 
 	fromPath := currentWorktreePath(entries, currentBranch)
 
 	rows := make([]pickerRow, 0, len(entries))
 	for i, worktree := range entries {
-		dirty, err := gitx.DirtySymbols(worktree.Path)
+		dirty, err := gitx.DirtySymbols(commandCtx, worktree.Path)
 		if err != nil {
 			dirty = "?"
 		}
-		relation, err := gitx.BranchRelation(ctx, worktree.Branch)
+		relation, err := gitx.BranchRelation(commandCtx, ctx, worktree.Branch)
 		if err != nil {
 			relation = "?"
 		}
@@ -243,14 +244,14 @@ func PickSwitchBranch(entries []gitx.Worktree, currentBranch string, ctx *gitx.R
 	)
 }
 
-func PickRemoveBranch(entries []gitx.Worktree, currentBranch string, ctx *gitx.RepoContext) (string, error) {
+func PickRemoveBranch(commandCtx context.Context, entries []gitx.Worktree, currentBranch string, ctx *gitx.RepoContext) (string, error) {
 	branches := make([]string, 0, len(entries))
 	for _, worktree := range entries {
 		if worktree.Branch != ctx.DefaultBranch {
 			branches = append(branches, worktree.Branch)
 		}
 	}
-	commits := gitx.FetchCommitsParallel(ctx, branches)
+	commits := gitx.FetchCommitsParallel(commandCtx, ctx, branches)
 
 	fromPath := currentWorktreePath(entries, currentBranch)
 
@@ -261,11 +262,11 @@ func PickRemoveBranch(entries []gitx.Worktree, currentBranch string, ctx *gitx.R
 			continue
 		}
 
-		dirty, err := gitx.DirtySymbols(worktree.Path)
+		dirty, err := gitx.DirtySymbols(commandCtx, worktree.Path)
 		if err != nil {
 			dirty = "?"
 		}
-		relation, err := gitx.BranchRelation(ctx, worktree.Branch)
+		relation, err := gitx.BranchRelation(commandCtx, ctx, worktree.Branch)
 		if err != nil {
 			relation = "?"
 		}
@@ -464,12 +465,12 @@ func parseSelectedBranch(selected string) (string, error) {
 	return "", fmt.Errorf("could not extract branch from fzf output")
 }
 
-func PrintWorktreeList(entries []gitx.Worktree, currentBranch string, ctx *gitx.RepoContext, w io.Writer) error {
+func PrintWorktreeList(commandCtx context.Context, entries []gitx.Worktree, currentBranch string, ctx *gitx.RepoContext, w io.Writer) error {
 	branches := make([]string, len(entries))
 	for i, worktree := range entries {
 		branches[i] = worktree.Branch
 	}
-	commits := gitx.FetchCommitsParallel(ctx, branches)
+	commits := gitx.FetchCommitsParallel(commandCtx, ctx, branches)
 
 	fromPath := currentWorktreePath(entries, currentBranch)
 
@@ -480,12 +481,12 @@ func PrintWorktreeList(entries []gitx.Worktree, currentBranch string, ctx *gitx.
 			m = "^"
 		}
 
-		dirty, err := gitx.DirtySymbols(worktree.Path)
+		dirty, err := gitx.DirtySymbols(commandCtx, worktree.Path)
 		if err != nil {
 			dirty = "?"
 		}
 
-		relation, err := gitx.BranchRelation(ctx, worktree.Branch)
+		relation, err := gitx.BranchRelation(commandCtx, ctx, worktree.Branch)
 		if err != nil {
 			relation = "?"
 		}
