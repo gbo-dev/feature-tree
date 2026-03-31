@@ -1,4 +1,4 @@
-# ft: featuretree
+# ft: feature-tree
 
 A lightweight Git worktree helper for bare-in-`.git` repositories, focused on feature-branch workflows.
 
@@ -17,8 +17,8 @@ Build the binary and place it somewhere on your `$PATH`.
 **Build from source:**
 
 ```sh
-git clone https://github.com/gbo-dev/ft.git
-cd ft
+git clone https://github.com/gbo-dev/feature-tree.git
+cd feature-tree
 go build -buildvcs=false -o ~/.local/bin/ft ./cmd/ft
 ```
 
@@ -64,7 +64,7 @@ Create your first worktree (the default branch):
 
 ```sh
 cd <repo>
-git --git-dir=.git worktree add main main # TODO CHECK THIS
+git --git-dir=.git worktree add <default-branch> <default-branch>
 ```
 
 Then use `ft create <branch>` for any subsequent branches — it handles worktree creation and copies the include manifest automatically.
@@ -151,11 +151,24 @@ internal/
   shell/        shell integration script generation
   tui/          embedded fzf picker
 references/     design notes and option references
-wt-shell/       original shell-script predecessor (wt + wt.zsh)
+legacy/         archived shell-script predecessor
 ```
 
-Future work notes:
+## Developer checks
 
+Optional dead code analysis is available with `deadcode`:
+
+```sh
+go install golang.org/x/tools/cmd/deadcode@latest
+deadcode ./...
+```
+
+## TODO
+
+- Build a full automated test suite (unit + integration) for safety-critical flows: remove safety checks, branch shortcut resolution (`^`, `@`), clone bootstrap, and shell integration behavior.
+- Harden and verify the cancellation path end-to-end: Ctrl+C should cancel the Cobra command context and terminate in-flight git subprocesses immediately (not only via timeout), with integration coverage for long-running operations.
+- Fix Unicode visible-width truncation/alignment issues in TUI rendering: current truncation mixes byte-based slicing with terminal-column assumptions, which can misalign rows or truncate incorrectly for wide glyphs, combining marks, emoji, and other multi-codepoint grapheme clusters (including cases where ellipsis width appears inconsistent across terminals/fonts).
+- Implement a single display-width utility for all truncation paths, based on grapheme-aware segmentation plus terminal-width calculation, and cover it with targeted fixtures (CJK, emoji ZWJ sequences, combining accents, and plain ASCII).
 - [Switch picker view paging notes](references/switch-view-paging-notes.md)
 
 ## Approach
@@ -164,6 +177,13 @@ Future work notes:
 - Default branch is auto-detected from `origin/HEAD`, then falls back to `main/master/trunk`
 - Include manifest (`.worktreeinclude`) is copied from the default branch on worktree creation
 - fzf is embedded via `github.com/junegunn/fzf/src` — no system fzf required
+- Git command failures are normalized in `internal/gitx` (`CommandError`/`ExpectSuccess`); core logic wraps operation context, and CLI prints the final user-facing error once
+
+## Error Handling Convention
+
+- `internal/gitx` normalizes git subprocess failures via `CommandError`/`ExpectSuccess` so stderr, exit status, cancellations, and timeouts are handled consistently.
+- `internal/core` wraps domain-operation context with `%w` and avoids ad-hoc stderr formatting.
+- `internal/cli` returns errors from command handlers and keeps final user-facing formatting at the command boundary.
 
 ## License
 

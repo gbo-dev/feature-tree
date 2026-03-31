@@ -1,4 +1,4 @@
-module github.com/gbo-dev/wt/go-port
+module github.com/gbo-dev/feature-tree
 
 go 1.24
 

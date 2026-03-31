@@ -1,4 +1,10 @@
-# wt
+# legacy/wt (archived)
+
+This directory is a legacy shell-script predecessor kept for reference only.
+
+- Development focus is the Go CLI (`ft`) in this repository.
+- The scripts here are not the source of truth for behavior and may diverge.
+- New features and fixes should be implemented in the Go code, not in this folder.
 
 `wt` is a lightweight Git worktree helper script for repositories that use a bare-in-`.git` layout.
 
