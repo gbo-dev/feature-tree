@@ -26,6 +26,21 @@ func TestCompletionCommandBash(t *testing.T) {
 	}
 }
 
+func TestInitCommandNoArgsEmitsNoStderr(t *testing.T) {
+	t.Setenv("SHELL", "/bin/bash")
+
+	stdout, stderr, err := runRootCommand(t, "", "init")
+	if err != nil {
+		t.Fatalf("ft init returned error: %v", err)
+	}
+	if strings.TrimSpace(stderr) != "" {
+		t.Fatalf("ft init stderr = %q, want empty", stderr)
+	}
+	if !strings.Contains(stdout, "# ft shell integration for bash") {
+		t.Fatalf("ft init stdout missing integration header, got: %q", stdout)
+	}
+}
+
 func TestCommandFlowCreateSwitchRemove(t *testing.T) {
 	repoRoot, mainWorktreePath := setupCLIRepo(t)
 	t.Setenv(shell.EmitCDEnv, shell.EmitCDValue)

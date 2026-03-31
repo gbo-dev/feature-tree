@@ -34,8 +34,6 @@ Source once in your shell config:
 			targetShell := shell.PreferredShell()
 			if len(args) == 1 {
 				targetShell = args[0]
-			} else {
-				fmt.Fprintf(cmd.ErrOrStderr(), "ft init: generating integration for %q (auto-detected from $SHELL; use 'ft init bash' or 'ft init zsh' to be explicit)\n", targetShell)
 			}
 
 			script, err := shell.InitScript(targetShell)
