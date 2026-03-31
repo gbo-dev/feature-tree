@@ -101,6 +101,20 @@ func TestListOutsideGitRepoFails(t *testing.T) {
 	assertNoOutputOnError(t, stdout, stderr)
 }
 
+func TestListAtDetachedHeadFailsWithClearMessage(t *testing.T) {
+	_, mainWorktreePath := setupCLIRepo(t)
+	testutil.RunGit(t, mainWorktreePath, "checkout", "--detach")
+
+	stdout, stderr, err := runRootCommand(t, mainWorktreePath, "list")
+	if err == nil {
+		t.Fatalf("ft list at detached HEAD should fail")
+	}
+	if !strings.Contains(err.Error(), "cannot determine current branch while HEAD is detached") {
+		t.Fatalf("ft list detached HEAD error = %q, expected detached HEAD message", err.Error())
+	}
+	assertNoOutputOnError(t, stdout, stderr)
+}
+
 func TestSwitchShortcutAtDetachedHeadFails(t *testing.T) {
 	_, mainWorktreePath := setupCLIRepo(t)
 	testutil.RunGit(t, mainWorktreePath, "checkout", "--detach")
