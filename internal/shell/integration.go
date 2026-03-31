@@ -24,7 +24,7 @@ func EmitCDOrWarning(path string, stdout io.Writer, stderr io.Writer) {
 		return
 	}
 
-	hint := preferredShellHint()
+	hint := PreferredShell()
 	fmt.Fprintln(stderr, "ft: shell integration not active, so automatic directory switching is unavailable")
 	fmt.Fprintf(stderr, "ft: run `eval \"$(ft init %s)\"` to enable auto-cd in this shell\n", hint)
 }
@@ -77,7 +77,7 @@ func shellFunctionScript() string {
 `
 }
 
-func preferredShellHint() string {
+func PreferredShell() string {
 	shellPath := os.Getenv("SHELL")
 	if shellPath == "" {
 		return "zsh"

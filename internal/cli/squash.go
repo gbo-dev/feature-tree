@@ -1,0 +1,131 @@
+package cli
+
+import (
+	"fmt"
+	"os"
+	"strings"
+
+	"github.com/spf13/cobra"
+
+	"github.com/gbo-dev/feature-tree/internal/core"
+	"github.com/gbo-dev/feature-tree/internal/gitx"
+)
+
+func newSquashCmd() *cobra.Command {
+	var baseBranch string
+
+	cmd := &cobra.Command{
+		Use:   "squash [--base <branch>]",
+		Short: "Squash current branch commits into one",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) != 0 {
+				return fmt.Errorf("ft: unexpected arguments")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			svc, err := core.NewService()
+			if err != nil {
+				return err
+			}
+
+			base := baseBranch
+			if strings.TrimSpace(base) == "" {
+				base = svc.Ctx.DefaultBranch
+			}
+			base, err = svc.ResolveBranchShortcut(base)
+			if err != nil {
+				return err
+			}
+
+			current, err := gitx.CurrentBranch("")
+			if err != nil {
+				return fmt.Errorf("ft: cannot squash on detached HEAD")
+			}
+			if current == base {
+				return fmt.Errorf("ft: base branch and current branch are the same")
+			}
+
+			baseExists, err := gitx.BranchExistsLocal(svc.Ctx, base)
+			if err != nil {
+				return err
+			}
+			if !baseExists {
+				return fmt.Errorf("ft: base branch not found locally: %s", base)
+			}
+
+			dirtySymbols, err := gitx.DirtySymbols(".")
+			if err != nil {
+				return err
+			}
+			if dirtySymbols != "clean" {
+				return fmt.Errorf("ft: working tree must be clean before squash")
+			}
+
+			countOut, stderr, exitCode, runErr := gitx.RunGitCommon(svc.Ctx, "rev-list", "--count", base+".."+current)
+			countOut, err = gitx.ExpectSuccess("count commits for squash", countOut, stderr, exitCode, runErr, "failed to count commits")
+			if err != nil {
+				return err
+			}
+
+			var count int
+			if _, err := fmt.Sscanf(strings.TrimSpace(countOut), "%d", &count); err != nil {
+				return fmt.Errorf("ft: failed to parse commit count")
+			}
+			if count < 2 {
+				return fmt.Errorf("ft: need at least 2 commits ahead of %s to squash", base)
+			}
+
+			mergeBase, stderr, exitCode, runErr := gitx.RunGitCommon(svc.Ctx, "merge-base", base, current)
+			mergeBase, err = gitx.ExpectSuccess("find merge-base", mergeBase, stderr, exitCode, runErr, "no merge-base found")
+			if err != nil {
+				return err
+			}
+			if strings.TrimSpace(mergeBase) == "" {
+				return fmt.Errorf("ft: find merge-base: no merge-base found")
+			}
+
+			logOut, stderr, exitCode, runErr := gitx.RunGitCommon(svc.Ctx, "log", "--format=%s", "--reverse", base+".."+current)
+			logOut, err = gitx.ExpectSuccess("list commits for squash", logOut, stderr, exitCode, runErr, "failed to list commits")
+			if err != nil {
+				return err
+			}
+
+			tmpFile, err := os.CreateTemp("", "ft-squash-*.txt")
+			if err != nil {
+				return fmt.Errorf("ft: create temporary commit message file: %w", err)
+			}
+			tmpPath := tmpFile.Name()
+			defer os.Remove(tmpPath)
+
+			subject := fmt.Sprintf("squash: %s (%d commits)", current, count)
+			lines := []string{subject, "", "Squashed commits:"}
+			for _, title := range strings.Split(logOut, "\n") {
+				title = strings.TrimSpace(title)
+				if title == "" {
+					continue
+				}
+				lines = append(lines, "- "+title)
+			}
+			_, _ = tmpFile.WriteString(strings.Join(lines, "\n") + "\n")
+			_ = tmpFile.Close()
+
+			_, stderr, exitCode, runErr = gitx.RunGit("", "reset", "--soft", strings.TrimSpace(mergeBase))
+			if err := gitx.CommandError("reset branch for squash", stderr, exitCode, runErr, "git reset failed"); err != nil {
+				return err
+			}
+
+			_, stderr, exitCode, runErr = gitx.RunGit("", "commit", "--file", tmpPath)
+			if err := gitx.CommandError("create squashed commit", stderr, exitCode, runErr, "git commit failed"); err != nil {
+				return err
+			}
+
+			fmt.Fprintf(cmd.OutOrStdout(), "Squashed %d commits on %s into one commit\n", count, current)
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVarP(&baseBranch, "base", "b", "", "Base branch (default: detected default branch)")
+	_ = cmd.RegisterFlagCompletionFunc("base", completeLocalBranchesWithShortcuts)
+	return cmd
+}

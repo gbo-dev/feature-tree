@@ -15,15 +15,13 @@ type RepoContext struct {
 }
 
 func DiscoverRepoContext() (*RepoContext, error) {
-	commonRaw, stderr, exitCode, err := runCommand("", "git", "rev-parse", "--git-common-dir")
+	commonRaw, stderr, exitCode, runErr := runCommand("", "git", "rev-parse", "--git-common-dir")
+	commonRaw, err := ExpectSuccess("discover git common dir", commonRaw, stderr, exitCode, runErr, "not inside a git worktree")
 	if err != nil {
-		return nil, fmt.Errorf("ft: not inside a git worktree: %w", err)
+		return nil, err
 	}
-	if exitCode != 0 || commonRaw == "" {
-		if stderr == "" {
-			stderr = "not inside a git worktree"
-		}
-		return nil, fmt.Errorf("ft: %s", stderr)
+	if strings.TrimSpace(commonRaw) == "" {
+		return nil, fmt.Errorf("ft: discover git common dir: empty output")
 	}
 
 	commonAbs, err := filepath.Abs(commonRaw)
@@ -71,23 +69,32 @@ func DiscoverRepoContext() (*RepoContext, error) {
 func gitCommon(gitCommonDir string, args ...string) (string, error) {
 	fullArgs := append([]string{"--git-dir", gitCommonDir}, args...)
 	stdout, stderr, exitCode, err := runCommand("", "git", fullArgs...)
-	return expectSuccess("ft: git command failed", stdout, stderr, exitCode, err)
+	return ExpectSuccess("git command failed", stdout, stderr, exitCode, err, "git command failed")
 }
 
 func detectDefaultBranch(gitCommonDir string) (string, error) {
-	remoteHead, _, _, err := runCommand("", "git", "--git-dir", gitCommonDir, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD")
-	if err == nil && remoteHead != "" {
+	remoteHead, stderr, exitCode, runErr := runCommand("", "git", "--git-dir", gitCommonDir, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD")
+	if runErr != nil {
+		return "", CommandError("resolve default branch via origin/HEAD", stderr, exitCode, runErr, "git symbolic-ref failed")
+	}
+	if exitCode == 0 && remoteHead != "" {
 		return strings.TrimPrefix(strings.TrimSpace(remoteHead), "origin/"), nil
+	}
+	if exitCode != 0 && exitCode != 1 {
+		return "", CommandError("resolve default branch via origin/HEAD", stderr, exitCode, nil, "git symbolic-ref failed")
 	}
 
 	fallbacks := []string{"main", "master", "trunk"}
 	for _, candidate := range fallbacks {
-		_, _, exitCode, runErr := runCommand("", "git", "--git-dir", gitCommonDir, "show-ref", "--verify", "--quiet", "refs/heads/"+candidate)
-		if runErr != nil {
-			return "", fmt.Errorf("ft: verify branch %s: %w", candidate, runErr)
-		}
+		_, stderr, exitCode, runErr := runCommand("", "git", "--git-dir", gitCommonDir, "show-ref", "--verify", "--quiet", "refs/heads/"+candidate)
 		if exitCode == 0 {
 			return candidate, nil
+		}
+		if exitCode == 1 && runErr == nil {
+			continue
+		}
+		if err := CommandError(fmt.Sprintf("verify fallback branch %q", candidate), stderr, exitCode, runErr, "git show-ref failed"); err != nil {
+			return "", err
 		}
 	}
 

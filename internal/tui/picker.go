@@ -8,7 +8,7 @@ import (
 
 	fzf "github.com/junegunn/fzf/src"
 
-	"github.com/gbo-dev/wt/go-port/internal/gitx"
+	"github.com/gbo-dev/feature-tree/internal/gitx"
 )
 
 var ErrSelectionCancelled = errors.New("selection cancelled")
@@ -50,17 +50,12 @@ const (
 	colWidthCommit   = len(colTitleCommit)
 )
 
-// Keep branch width in sync with the branch header title.
 const branchColMinWidth = colWidthBranch
 
-// ellipsis is the Unicode horizontal ellipsis (U+2026) used to mark truncated
-// column values. It is 3 UTF-8 bytes and is treated as 1 visible terminal
-// column for layout. All other content strings are ASCII, so only ellipsis
-// needs special handling in width calculations.
+// ellipsis marks truncation and renders as one terminal column.
 const ellipsis = "\u2026"
 const ellipsisWidth = 1
 
-// visWidth returns visible terminal columns for s.
 func visWidth(s string) int {
 	return len(s) - strings.Count(s, ellipsis)*(3-ellipsisWidth)
 }
@@ -93,10 +88,10 @@ type pickerRow struct {
 	branch   string
 	commit   gitx.CommitInfo
 	path     string
-	state    string // rendered state: "clean", "dirty", "dirty (+!?)" for switch/list/remove
-	relation string // "A: 3  B: 0", "-" – remove and list
+	state    string
+	relation string
 	current  bool
-	marker   string // "^": default branch marker when not current
+	marker   string
 }
 
 type headerCol struct {
@@ -104,13 +99,12 @@ type headerCol struct {
 	width int
 }
 
-// rowLayout stores effective visible widths; zero means optional column absent.
 type rowLayout struct {
-	branchWidth   int // ≤ branchDisplayMax; ≥ branchColMinWidth
-	pathWidth     int // ≤ pathDisplayMax
-	stateWidth    int // 0 = absent
-	relationWidth int // 0 = absent
-	commitWidth   int // 0 = absent
+	branchWidth   int
+	pathWidth     int
+	stateWidth    int
+	relationWidth int
+	commitWidth   int
 }
 
 // computeLayout derives effective widths from content, then floors at title width.
@@ -198,7 +192,6 @@ func fitListLayout(l rowLayout) rowLayout {
 	return l
 }
 
-// capListCommitWidth applies the stricter list-mode commit cap.
 func capListCommitWidth(l rowLayout) rowLayout {
 	if l.commitWidth > listCommitMax {
 		l.commitWidth = listCommitMax
@@ -206,11 +199,10 @@ func capListCommitWidth(l rowLayout) rowLayout {
 	return l
 }
 
-// currentWorktreePath returns currentBranch's worktree path, if present.
 func currentWorktreePath(entries []gitx.Worktree, currentBranch string) string {
-	for _, wt := range entries {
-		if wt.Branch == currentBranch {
-			return wt.Path
+	for _, worktree := range entries {
+		if worktree.Branch == currentBranch {
+			return worktree.Path
 		}
 	}
 	return ""
@@ -218,34 +210,34 @@ func currentWorktreePath(entries []gitx.Worktree, currentBranch string) string {
 
 func PickSwitchBranch(entries []gitx.Worktree, currentBranch string, ctx *gitx.RepoContext) (string, error) {
 	branches := make([]string, len(entries))
-	for i, wt := range entries {
-		branches[i] = wt.Branch
+	for i, worktree := range entries {
+		branches[i] = worktree.Branch
 	}
 	commits := gitx.FetchCommitsParallel(ctx, branches)
 
 	fromPath := currentWorktreePath(entries, currentBranch)
 
 	rows := make([]pickerRow, 0, len(entries))
-	for i, wt := range entries {
-		dirty, err := gitx.DirtySymbols(wt.Path)
+	for i, worktree := range entries {
+		dirty, err := gitx.DirtySymbols(worktree.Path)
 		if err != nil {
 			dirty = "?"
 		}
-		relation, err := gitx.BranchRelation(ctx, wt.Branch)
+		relation, err := gitx.BranchRelation(ctx, worktree.Branch)
 		if err != nil {
 			relation = "?"
 		}
 		m := ""
-		if wt.Branch == ctx.DefaultBranch && wt.Branch != currentBranch {
+		if worktree.Branch == ctx.DefaultBranch && worktree.Branch != currentBranch {
 			m = "^"
 		}
 		rows = append(rows, pickerRow{
-			branch:   wt.Branch,
+			branch:   worktree.Branch,
 			commit:   commits[i],
-			path:     gitx.RelativePath(wt.Path, fromPath),
+			path:     gitx.RelativePath(worktree.Path, fromPath),
 			state:    gitx.DirtyState(dirty),
 			relation: relation,
-			current:  wt.Branch == currentBranch,
+			current:  worktree.Branch == currentBranch,
 			marker:   m,
 		})
 	}
@@ -272,9 +264,9 @@ func PickSwitchBranch(entries []gitx.Worktree, currentBranch string, ctx *gitx.R
 
 func PickRemoveBranch(entries []gitx.Worktree, currentBranch string, ctx *gitx.RepoContext) (string, error) {
 	branches := make([]string, 0, len(entries))
-	for _, wt := range entries {
-		if wt.Branch != ctx.DefaultBranch {
-			branches = append(branches, wt.Branch)
+	for _, worktree := range entries {
+		if worktree.Branch != ctx.DefaultBranch {
+			branches = append(branches, worktree.Branch)
 		}
 	}
 	commits := gitx.FetchCommitsParallel(ctx, branches)
@@ -283,27 +275,27 @@ func PickRemoveBranch(entries []gitx.Worktree, currentBranch string, ctx *gitx.R
 
 	rows := make([]pickerRow, 0, len(branches))
 	ci := 0
-	for _, wt := range entries {
-		if wt.Branch == ctx.DefaultBranch {
+	for _, worktree := range entries {
+		if worktree.Branch == ctx.DefaultBranch {
 			continue
 		}
 
-		dirty, err := gitx.DirtySymbols(wt.Path)
+		dirty, err := gitx.DirtySymbols(worktree.Path)
 		if err != nil {
 			dirty = "?"
 		}
-		relation, err := gitx.BranchRelation(ctx, wt.Branch)
+		relation, err := gitx.BranchRelation(ctx, worktree.Branch)
 		if err != nil {
 			relation = "?"
 		}
 
 		rows = append(rows, pickerRow{
-			branch:   wt.Branch,
+			branch:   worktree.Branch,
 			commit:   commits[ci],
-			path:     gitx.RelativePath(wt.Path, fromPath),
+			path:     gitx.RelativePath(worktree.Path, fromPath),
 			state:    gitx.DirtyState(dirty),
 			relation: relation,
-			current:  wt.Branch == currentBranch,
+			current:  worktree.Branch == currentBranch,
 		})
 		ci++
 	}
@@ -328,10 +320,8 @@ func PickRemoveBranch(entries []gitx.Worktree, currentBranch string, ctx *gitx.R
 	)
 }
 
-// pickerHeader builds the styled title row used by fzf --header.
 func pickerHeader(branchWidth int, cols []headerCol) string {
 	branchTitle := cols[0].title
-	// +2 matches the two-space separator appended after branchField in buildFZFLines.
 	pad := branchWidth - len(branchTitle) + 2
 
 	line := ansiGrey + ansiBold + "  " + branchTitle + strings.Repeat(" ", pad)
@@ -380,7 +370,6 @@ func fzfBaseArgs() []string {
 	}
 }
 
-// runFZF runs the embedded fzf engine over pre-built display lines.
 func runFZF(lines []string, prompt string, extraArgs ...string) (string, error) {
 	inputCh := make(chan string)
 	outputCh := make(chan string, 1)
@@ -469,7 +458,6 @@ func buildFZFLines(rows []pickerRow, l rowLayout) []string {
 			parts = append(parts, ansiGrey+rel+ansiReset+strings.Repeat(" ", l.relationWidth-len(rel)))
 		}
 
-		// Use visWidth (not len): commit Display may include ellipsis.
 		if l.commitWidth > 0 {
 			if s := row.commit.Display(l.commitWidth); s != "" {
 				parts = append(parts, ansiGrey+s+ansiReset+strings.Repeat(" ", l.commitWidth-visWidth(s)))
@@ -482,7 +470,6 @@ func buildFZFLines(rows []pickerRow, l rowLayout) []string {
 	return lines
 }
 
-// parseSelectedBranch reads the hidden branch payload after the tab separator.
 func parseSelectedBranch(selected string) (string, error) {
 	selected = strings.TrimSpace(selected)
 	if selected == "" {
@@ -499,40 +486,39 @@ func parseSelectedBranch(selected string) (string, error) {
 	return "", fmt.Errorf("could not extract branch from fzf output")
 }
 
-// PrintWorktreeList writes a non-interactive table of worktrees.
 func PrintWorktreeList(entries []gitx.Worktree, currentBranch string, ctx *gitx.RepoContext, w io.Writer) error {
 	branches := make([]string, len(entries))
-	for i, wt := range entries {
-		branches[i] = wt.Branch
+	for i, worktree := range entries {
+		branches[i] = worktree.Branch
 	}
 	commits := gitx.FetchCommitsParallel(ctx, branches)
 
 	fromPath := currentWorktreePath(entries, currentBranch)
 
 	rows := make([]pickerRow, 0, len(entries))
-	for i, wt := range entries {
+	for i, worktree := range entries {
 		m := ""
-		if wt.Branch == ctx.DefaultBranch && wt.Branch != currentBranch {
+		if worktree.Branch == ctx.DefaultBranch && worktree.Branch != currentBranch {
 			m = "^"
 		}
 
-		dirty, err := gitx.DirtySymbols(wt.Path)
+		dirty, err := gitx.DirtySymbols(worktree.Path)
 		if err != nil {
 			dirty = "?"
 		}
 
-		relation, err := gitx.BranchRelation(ctx, wt.Branch)
+		relation, err := gitx.BranchRelation(ctx, worktree.Branch)
 		if err != nil {
 			relation = "?"
 		}
 
 		rows = append(rows, pickerRow{
-			branch:   wt.Branch,
+			branch:   worktree.Branch,
 			commit:   commits[i],
-			path:     gitx.RelativePath(wt.Path, fromPath),
+			path:     gitx.RelativePath(worktree.Path, fromPath),
 			state:    gitx.DirtyState(dirty),
 			relation: relation,
-			current:  wt.Branch == currentBranch,
+			current:  worktree.Branch == currentBranch,
 			marker:   m,
 		})
 	}

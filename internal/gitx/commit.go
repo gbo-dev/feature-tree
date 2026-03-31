@@ -10,6 +10,8 @@ const ellipsis = "\u2026"
 
 const ellipsisWidth = 1
 
+const maxConcurrentHeadCommits = 8
+
 type CommitInfo struct {
 	Hash    string // 4-character abbreviated hash; empty when unavailable
 	Subject string // first line of the commit message; empty when unavailable
@@ -32,8 +34,8 @@ func (c CommitInfo) Display(max int) string {
 
 // HeadCommit returns abbreviated head-commit info for branch.
 func HeadCommit(ctx *RepoContext, branch string) CommitInfo {
-	out, _, exitCode, err := RunGitCommon(ctx, "log", "-1", "--abbrev=4", "--format=%h\t%s", branch)
-	if err != nil || exitCode != 0 || out == "" {
+	out, stderr, exitCode, runErr := RunGitCommon(ctx, "log", "-1", "--abbrev=4", "--format=%h\t%s", branch)
+	if err := CommandError("read branch head commit", stderr, exitCode, runErr, "git log failed"); err != nil || out == "" {
 		return CommitInfo{}
 	}
 	parts := strings.SplitN(strings.TrimSpace(out), "\t", 2)
@@ -49,11 +51,23 @@ func HeadCommit(ctx *RepoContext, branch string) CommitInfo {
 // FetchCommitsParallel returns head commits for branches in input order.
 func FetchCommitsParallel(ctx *RepoContext, branches []string) []CommitInfo {
 	results := make([]CommitInfo, len(branches))
+	if len(branches) == 0 {
+		return results
+	}
+
+	limit := maxConcurrentHeadCommits
+	if len(branches) < limit {
+		limit = len(branches)
+	}
+
+	sem := make(chan struct{}, limit)
 	var wg sync.WaitGroup
 	for i, b := range branches {
+		sem <- struct{}{}
 		wg.Add(1)
 		go func(idx int, branch string) {
 			defer wg.Done()
+			defer func() { <-sem }()
 			results[idx] = HeadCommit(ctx, branch)
 		}(i, b)
 	}

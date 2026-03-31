@@ -1,0 +1,82 @@
+package cli
+
+import (
+	"errors"
+	"fmt"
+	"os"
+
+	"github.com/spf13/cobra"
+	"golang.org/x/term"
+
+	"github.com/gbo-dev/feature-tree/internal/core"
+	"github.com/gbo-dev/feature-tree/internal/gitx"
+	"github.com/gbo-dev/feature-tree/internal/shell"
+	"github.com/gbo-dev/feature-tree/internal/tui"
+)
+
+func newSwitchCmd() *cobra.Command {
+	var createIfMissing bool
+	var baseBranch string
+
+	cmd := &cobra.Command{
+		Use:   "switch [branch]",
+		Short: "Switch to an existing worktree branch",
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+			return completeSwitchBranches(cmd, args, toComplete)
+		},
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 1 {
+				return fmt.Errorf("ft: unexpected arguments")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			svc, err := core.NewService()
+			if err != nil {
+				return err
+			}
+
+			branch := ""
+			if len(args) == 1 {
+				branch = args[0]
+			} else {
+				entries, err := gitx.ListWorktrees(svc.Ctx)
+				if err != nil {
+					return err
+				}
+
+				current, _ := gitx.CurrentBranch("")
+				if term.IsTerminal(int(os.Stdin.Fd())) {
+					picked, pickErr := tui.PickSwitchBranch(entries, current, svc.Ctx)
+					if pickErr != nil {
+						if errors.Is(pickErr, tui.ErrSelectionCancelled) {
+							return fmt.Errorf("ft: selection cancelled")
+						}
+						return pickErr
+					}
+					branch = picked
+				} else {
+					return fmt.Errorf("ft: no branch specified and no interactive TTY available")
+				}
+			}
+
+			result, err := svc.Switch(branch, createIfMissing, baseBranch)
+			if err != nil {
+				return err
+			}
+
+			if result.Created {
+				fmt.Fprintf(cmd.OutOrStdout(), "Created worktree: %s -> %s\n", result.Branch, result.Path)
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Switched to %s (%s)\n", result.Branch, result.Path)
+			shell.EmitCDOrWarning(result.Path, cmd.OutOrStdout(), cmd.ErrOrStderr())
+
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVarP(&createIfMissing, "create", "c", false, "Create worktree if branch is missing")
+	cmd.Flags().StringVarP(&baseBranch, "base", "b", "", "Base branch used with --create")
+	_ = cmd.RegisterFlagCompletionFunc("base", completeLocalBranchesWithShortcuts)
+	return cmd
+}

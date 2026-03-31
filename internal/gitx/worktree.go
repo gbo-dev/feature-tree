@@ -26,15 +26,9 @@ func RelativePath(wtPath, fromPath string) string {
 }
 
 func ListWorktrees(ctx *RepoContext) ([]Worktree, error) {
-	stdout, stderr, exitCode, err := RunGitCommon(ctx, "worktree", "list", "--porcelain")
-	if err != nil {
-		return nil, fmt.Errorf("ft: list worktrees: %w", err)
-	}
-	if exitCode != 0 {
-		if stderr == "" {
-			stderr = "git worktree list failed"
-		}
-		return nil, fmt.Errorf("ft: %s", stderr)
+	stdout, stderr, exitCode, runErr := RunGitCommon(ctx, "worktree", "list", "--porcelain")
+	if err := CommandError("list worktrees", stderr, exitCode, runErr, "git worktree list failed"); err != nil {
+		return nil, err
 	}
 
 	var (
@@ -77,46 +71,31 @@ func ListWorktrees(ctx *RepoContext) ([]Worktree, error) {
 }
 
 func CurrentBranch(dir string) (string, error) {
-	stdout, stderr, exitCode, err := RunGit(dir, "symbolic-ref", "--quiet", "--short", "HEAD")
-	if err != nil {
-		return "", fmt.Errorf("ft: resolve current branch: %w", err)
-	}
-	if exitCode != 0 {
-		if stderr == "" {
-			stderr = "HEAD is detached"
-		}
-		return "", fmt.Errorf("ft: %s", stderr)
+	stdout, stderr, exitCode, runErr := RunGit(dir, "symbolic-ref", "--quiet", "--short", "HEAD")
+	if err := CommandError("resolve current branch", stderr, exitCode, runErr, "HEAD is detached"); err != nil {
+		return "", err
 	}
 	return strings.TrimSpace(stdout), nil
 }
 
 func BranchExistsLocal(ctx *RepoContext, branch string) (bool, error) {
-	_, stderr, exitCode, err := RunGitCommon(ctx, "show-ref", "--verify", "--quiet", "refs/heads/"+branch)
-	if err != nil {
-		return false, fmt.Errorf("ft: verify local branch %q: %w", branch, err)
-	}
+	_, stderr, exitCode, runErr := RunGitCommon(ctx, "show-ref", "--verify", "--quiet", "refs/heads/"+branch)
 	if exitCode == 0 {
 		return true, nil
 	}
-	if exitCode == 1 {
+	if exitCode == 1 && runErr == nil {
 		return false, nil
 	}
-	if stderr != "" {
-		return false, fmt.Errorf("ft: %s", stderr)
+	if err := CommandError(fmt.Sprintf("verify local branch %q", branch), stderr, exitCode, runErr, "git show-ref failed"); err != nil {
+		return false, err
 	}
-	return false, fmt.Errorf("ft: git show-ref failed for branch %q", branch)
+	return false, nil
 }
 
 func DirtySymbols(path string) (string, error) {
-	stdout, stderr, exitCode, err := RunGit(path, "status", "--porcelain", "--untracked-files=normal")
-	if err != nil {
-		return "", fmt.Errorf("ft: inspect dirty state: %w", err)
-	}
-	if exitCode != 0 {
-		if stderr == "" {
-			stderr = "git status failed"
-		}
-		return "", fmt.Errorf("ft: %s", stderr)
+	stdout, stderr, exitCode, runErr := RunGit(path, "status", "--porcelain", "--untracked-files=normal")
+	if err := CommandError("inspect dirty state", stderr, exitCode, runErr, "git status failed"); err != nil {
+		return "", err
 	}
 
 	staged := false
@@ -173,15 +152,15 @@ func BranchRelation(ctx *RepoContext, branch string) (string, error) {
 		return "-", nil
 	}
 
-	stdout, stderr, exitCode, err := RunGitCommon(ctx, "rev-list", "--left-right", "--count", ctx.DefaultBranch+"..."+branch)
-	if err != nil {
-		return "", fmt.Errorf("ft: compute branch relation: %w", err)
+	stdout, stderr, exitCode, runErr := RunGitCommon(ctx, "rev-list", "--left-right", "--count", ctx.DefaultBranch+"..."+branch)
+	if runErr != nil {
+		return "", CommandError(fmt.Sprintf("compute branch relation for %q", branch), stderr, exitCode, runErr, "git rev-list failed")
 	}
 	if exitCode != 0 {
 		if stderr == "" {
 			return "?", nil
 		}
-		return "", fmt.Errorf("ft: %s", stderr)
+		return "", CommandError(fmt.Sprintf("compute branch relation for %q", branch), stderr, exitCode, nil, "git rev-list failed")
 	}
 
 	parts := strings.Fields(stdout)
