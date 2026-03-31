@@ -69,7 +69,7 @@ git --git-dir=.git worktree add <default-branch> <default-branch>
 
 Then use `ft create <branch>` for any subsequent branches — it handles worktree creation and copies the include manifest automatically.
 
-> **Note:** `git clone --bare` does not set up `origin/HEAD` or branch tracking entries by default. Run `git --git-dir=.git remote set-head origin --auto` after cloning so `ft` can auto-detect the default branch. A `ft clone` command that handles this automatically is planned (see below).
+> **Note:** `git clone --bare` does not set up `origin/HEAD` or branch tracking entries by default. Run `git --git-dir=.git remote set-head origin --auto` after cloning so `ft` can auto-detect the default branch. `ft clone` already handles this bootstrap automatically (see below).
 
 ## Commands
 
