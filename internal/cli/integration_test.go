@@ -78,51 +78,88 @@ func TestCommandFlowCreateSwitchRemove(t *testing.T) {
 func TestSwitchWithoutBranchInNonInteractiveSessionFails(t *testing.T) {
 	_, mainWorktreePath := setupCLIRepo(t)
 
-	_, _, err := runRootCommand(t, mainWorktreePath, "switch")
+	stdout, stderr, err := runRootCommand(t, mainWorktreePath, "switch")
 	if err == nil {
 		t.Fatalf("ft switch without branch expected non-interactive error")
 	}
 	if !strings.Contains(err.Error(), "no branch specified and no interactive TTY available") {
 		t.Fatalf("ft switch error = %q, expected non-interactive message", err.Error())
 	}
+	assertNoOutputOnError(t, stdout, stderr)
 }
 
 func TestListOutsideGitRepoFails(t *testing.T) {
 	nonRepoPath := t.TempDir()
 
-	_, _, err := runRootCommand(t, nonRepoPath, "list")
+	stdout, stderr, err := runRootCommand(t, nonRepoPath, "list")
 	if err == nil {
 		t.Fatalf("ft list outside a git repository should fail")
 	}
 	if !strings.Contains(err.Error(), "not a git repository") {
 		t.Fatalf("ft list outside repo error = %q, expected git repository error", err.Error())
 	}
+	assertNoOutputOnError(t, stdout, stderr)
 }
 
 func TestSwitchShortcutAtDetachedHeadFails(t *testing.T) {
 	_, mainWorktreePath := setupCLIRepo(t)
 	testutil.RunGit(t, mainWorktreePath, "checkout", "--detach")
 
-	_, _, err := runRootCommand(t, mainWorktreePath, "switch", "@")
+	stdout, stderr, err := runRootCommand(t, mainWorktreePath, "switch", "@")
 	if err == nil {
 		t.Fatalf("ft switch @ should fail on detached HEAD")
 	}
 	if !strings.Contains(err.Error(), "HEAD is detached; @ is unavailable") {
 		t.Fatalf("ft switch @ detached HEAD error = %q, expected detached HEAD shortcut error", err.Error())
 	}
+	assertNoOutputOnError(t, stdout, stderr)
 }
 
 func TestRemoveWithoutBranchAtDetachedHeadFails(t *testing.T) {
 	_, mainWorktreePath := setupCLIRepo(t)
 	testutil.RunGit(t, mainWorktreePath, "checkout", "--detach")
 
-	_, _, err := runRootCommand(t, mainWorktreePath, "remove")
+	stdout, stderr, err := runRootCommand(t, mainWorktreePath, "remove")
 	if err == nil {
 		t.Fatalf("ft remove without explicit branch should fail on detached HEAD")
 	}
 	if !strings.Contains(err.Error(), "cannot infer branch from detached HEAD") {
 		t.Fatalf("ft remove detached HEAD error = %q, expected detached HEAD inference error", err.Error())
 	}
+	assertNoOutputOnError(t, stdout, stderr)
+}
+
+func TestCreateWithAtBaseAtDetachedHeadFails(t *testing.T) {
+	_, mainWorktreePath := setupCLIRepo(t)
+	testutil.RunGit(t, mainWorktreePath, "checkout", "--detach")
+
+	stdout, stderr, err := runRootCommand(t, mainWorktreePath, "create", "feature-detached", "--base", "@")
+	if err == nil {
+		t.Fatalf("ft create --base @ should fail on detached HEAD")
+	}
+	if !strings.Contains(err.Error(), "HEAD is detached; @ is unavailable") {
+		t.Fatalf("ft create --base @ detached HEAD error = %q, expected detached HEAD shortcut error", err.Error())
+	}
+	assertNoOutputOnError(t, stdout, stderr)
+
+	_, _, gitErr := testutil.RunGitWithError(t, mainWorktreePath, "show-ref", "--verify", "refs/heads/feature-detached")
+	if gitErr == nil {
+		t.Fatalf("feature-detached branch should not be created on detached HEAD when --base @ fails")
+	}
+}
+
+func TestRemoveAtShortcutAtDetachedHeadFails(t *testing.T) {
+	_, mainWorktreePath := setupCLIRepo(t)
+	testutil.RunGit(t, mainWorktreePath, "checkout", "--detach")
+
+	stdout, stderr, err := runRootCommand(t, mainWorktreePath, "remove", "@")
+	if err == nil {
+		t.Fatalf("ft remove @ should fail on detached HEAD")
+	}
+	if !strings.Contains(err.Error(), "HEAD is detached; @ is unavailable") {
+		t.Fatalf("ft remove @ detached HEAD error = %q, expected detached HEAD shortcut error", err.Error())
+	}
+	assertNoOutputOnError(t, stdout, stderr)
 }
 
 func setupCLIRepo(t *testing.T) (string, string) {
@@ -175,4 +212,15 @@ func runRootCommand(t *testing.T, cwd string, args ...string) (string, string, e
 
 	err := cmd.ExecuteContext(ctx)
 	return stdout.String(), stderr.String(), err
+}
+
+func assertNoOutputOnError(t *testing.T, stdout string, stderr string) {
+	t.Helper()
+
+	if strings.TrimSpace(stdout) != "" {
+		t.Fatalf("stdout should be empty on error, got: %q", stdout)
+	}
+	if strings.TrimSpace(stderr) != "" {
+		t.Fatalf("stderr should be empty on error, got: %q", stderr)
+	}
 }
