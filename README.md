@@ -157,13 +157,14 @@ go install golang.org/x/tools/cmd/deadcode@latest
 deadcode ./...
 ```
 
-## TODO
+<!-- ## TODO
 
 - Build a full automated test suite (unit + integration) for safety-critical flows: remove safety checks, branch shortcut resolution (`^`, `@`), clone bootstrap, and shell integration behavior.
 - Harden and verify the cancellation path end-to-end: Ctrl+C should cancel the Cobra command context and terminate in-flight git subprocesses immediately (not only via timeout), with integration coverage for long-running operations.
 - Fix Unicode visible-width truncation/alignment issues in TUI rendering: current truncation mixes byte-based slicing with terminal-column assumptions, which can misalign rows or truncate incorrectly for wide glyphs, combining marks, emoji, and other multi-codepoint grapheme clusters (including cases where ellipsis width appears inconsistent across terminals/fonts).
 - Implement a single display-width utility for all truncation paths, based on grapheme-aware segmentation plus terminal-width calculation, and cover it with targeted fixtures (CJK, emoji ZWJ sequences, combining accents, and plain ASCII).
 - [Switch picker view paging notes](references/switch-view-paging-notes.md)
+-->
 
 ## Approach
 
