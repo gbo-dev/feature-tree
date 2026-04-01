@@ -90,6 +90,75 @@ func TestCommandFlowCreateSwitchRemove(t *testing.T) {
 	}
 }
 
+func TestRemoveReportsMergedBranchDeletion(t *testing.T) {
+	repoRoot, mainWorktreePath := setupCLIRepo(t)
+	t.Setenv(shell.EmitCDEnv, shell.EmitCDValue)
+
+	if _, _, err := runRootCommand(t, mainWorktreePath, "create", "feature-merged"); err != nil {
+		t.Fatalf("ft create feature-merged returned error: %v", err)
+	}
+
+	featurePath := filepath.Join(repoRoot, "feature-merged")
+	mergedFile := filepath.Join(featurePath, "merged.txt")
+	if err := os.WriteFile(mergedFile, []byte("merged\n"), 0o644); err != nil {
+		t.Fatalf("write merged file: %v", err)
+	}
+	testutil.RunGit(t, featurePath, "add", "merged.txt")
+	testutil.RunGit(t, featurePath, "commit", "-m", "feature merged commit")
+	testutil.RunGit(t, mainWorktreePath, "merge", "--no-ff", "feature-merged", "-m", "merge feature-merged")
+
+	stdout, stderr, err := runRootCommand(t, mainWorktreePath, "remove", "feature-merged")
+	if err != nil {
+		t.Fatalf("ft remove feature-merged returned error: %v", err)
+	}
+	if !strings.Contains(stdout, "Removed worktree and deleted merged branch: feature-merged") {
+		t.Fatalf("ft remove output missing merged-branch deletion message, got: %q", stdout)
+	}
+	if strings.TrimSpace(stderr) != "" {
+		t.Fatalf("ft remove stderr = %q, want empty", stderr)
+	}
+}
+
+func TestRemoveReportsCleanDeletionWithoutMergedClaim(t *testing.T) {
+	repoRoot, mainWorktreePath := setupCLIRepo(t)
+	t.Setenv(shell.EmitCDEnv, shell.EmitCDValue)
+
+	if _, _, err := runRootCommand(t, mainWorktreePath, "create", "feature-clean"); err != nil {
+		t.Fatalf("ft create feature-clean returned error: %v", err)
+	}
+
+	basePath := filepath.Dir(repoRoot)
+	remotePath := filepath.Join(basePath, "origin.git")
+	updaterPath := filepath.Join(basePath, "updater")
+	testutil.RunGit(t, "", "clone", remotePath, updaterPath)
+	testutil.RunGit(t, updaterPath, "config", "user.name", "Test User")
+	testutil.RunGit(t, updaterPath, "config", "user.email", "test@example.com")
+
+	remoteOnlyFile := filepath.Join(updaterPath, "remote-only.txt")
+	if err := os.WriteFile(remoteOnlyFile, []byte("remote change\n"), 0o644); err != nil {
+		t.Fatalf("write remote-only file: %v", err)
+	}
+	testutil.RunGit(t, updaterPath, "add", "remote-only.txt")
+	testutil.RunGit(t, updaterPath, "commit", "-m", "advance origin main")
+	testutil.RunGit(t, updaterPath, "push", "origin", "main")
+
+	testutil.RunGit(t, mainWorktreePath, "fetch", "origin")
+
+	stdout, stderr, err := runRootCommand(t, mainWorktreePath, "remove", "feature-clean")
+	if err != nil {
+		t.Fatalf("ft remove feature-clean returned error: %v", err)
+	}
+	if !strings.Contains(stdout, "Removed worktree and deleted branch: feature-clean (no local commits)") {
+		t.Fatalf("ft remove output missing clean deletion message, got: %q", stdout)
+	}
+	if strings.Contains(stdout, "deleted merged branch") {
+		t.Fatalf("ft remove output should not claim merged deletion, got: %q", stdout)
+	}
+	if strings.TrimSpace(stderr) != "" {
+		t.Fatalf("ft remove stderr = %q, want empty", stderr)
+	}
+}
+
 func TestSwitchWithoutBranchInNonInteractiveSessionFails(t *testing.T) {
 	_, mainWorktreePath := setupCLIRepo(t)
 

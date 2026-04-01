@@ -34,6 +34,7 @@ type RemoveResult struct {
 	FallbackPath   string
 	TargetRef      string
 	DeletedMerged  bool
+	DeletedClean   bool
 	DeletedForced  bool
 	KeptBranch     bool
 	NoDeleteBranch bool
