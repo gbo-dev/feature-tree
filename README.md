@@ -1,4 +1,4 @@
-# ft: feature-tree
+# ft: feature-tree (WIP)
 
 A lightweight Git worktree helper for bare-in-`.git` repositories, focused on feature-branch workflows.
 
@@ -30,12 +30,6 @@ go build -buildvcs=false -o ~/.local/bin/ft ./cmd/ft
 A Go binary cannot change its caller's working directory — this is an OS constraint that applies in any language. `ft` prints a `__FT_CD__=<path>` marker on stdout that the shell wrapper intercepts and turns into a `cd` call.
 
 Add this line to your `~/.zshrc` or `~/.bashrc` (it evaluates the shell function once at shell startup):
-
-```sh
-eval "$(ft init)"
-```
-
-`ft init` auto-detects your shell from `$SHELL`. To be explicit:
 
 ```sh
 eval "$(ft init zsh)"    # or bash
