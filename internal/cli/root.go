@@ -39,7 +39,7 @@ const helpTemplate = `ft (feature-tree) – lightweight git worktree helper
 Usage:
   ft clone <url> [dir]
   ft switch [--create] [--base <branch>] [branch]
-  ft create <branch> [--base <branch>]
+  ft create [--all-branches] [--base <branch>] [branch]
   ft list
   ft remove [branch] [-f|--force-worktree] [-D|--force-branch] [--no-delete-branch]
   ft squash [--base <branch>]
@@ -54,6 +54,8 @@ Notes:
   - list markers: @ is current branch worktree, ^ is default branch worktree.
   - STATE symbols: + staged, ! unstaged, ? untracked; combinations (e.g. +!?) mean multiple states.
   - switch without branch opens fzf picker when running in a TTY.
+  - create without branch opens fzf picker when running in a TTY.
+  - create picker shows worktree branches by default; use --all-branches to include all local branches.
   - switch/create auto-cd when shell integration is active.
   - Enable integration with: eval "$(ft init zsh)"
   - Tab completion includes branch/worktree names for switch/create and --base.

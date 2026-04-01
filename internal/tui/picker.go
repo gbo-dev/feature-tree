@@ -244,6 +244,82 @@ func PickSwitchBranch(commandCtx context.Context, entries []gitx.Worktree, curre
 	)
 }
 
+func PickCreateBranch(commandCtx context.Context, entries []gitx.Worktree, currentBranch string, ctx *gitx.RepoContext, includeAllBranches bool) (string, error) {
+	branches := make([]string, 0, len(entries))
+	worktreeByBranch := make(map[string]gitx.Worktree, len(entries))
+	for _, worktree := range entries {
+		branches = append(branches, worktree.Branch)
+		worktreeByBranch[worktree.Branch] = worktree
+	}
+
+	if includeAllBranches {
+		localBranches, err := gitx.ListLocalBranches(commandCtx, ctx)
+		if err != nil {
+			return "", err
+		}
+		for _, branch := range localBranches {
+			if _, ok := worktreeByBranch[branch]; ok {
+				continue
+			}
+			branches = append(branches, branch)
+		}
+	}
+
+	commits := gitx.FetchCommitsParallel(commandCtx, ctx, branches)
+	fromPath := currentWorktreePath(entries, currentBranch)
+
+	rows := make([]pickerRow, 0, len(branches))
+	for i, branch := range branches {
+		worktree, hasWorktree := worktreeByBranch[branch]
+		path := "(no worktree)"
+		state := "-"
+		if hasWorktree {
+			path = gitx.RelativePath(worktree.Path, fromPath)
+			dirty, err := gitx.DirtySymbols(commandCtx, worktree.Path)
+			if err != nil {
+				dirty = "?"
+			}
+			state = gitx.DirtyState(dirty)
+		}
+		relation, err := gitx.BranchRelation(commandCtx, ctx, branch)
+		if err != nil {
+			relation = "?"
+		}
+		m := ""
+		if branch == ctx.DefaultBranch && branch != currentBranch {
+			m = "^"
+		}
+		rows = append(rows, pickerRow{
+			branch:   branch,
+			commit:   commits[i],
+			path:     path,
+			state:    state,
+			relation: relation,
+			current:  branch == currentBranch,
+			marker:   m,
+		})
+	}
+
+	if len(rows) == 0 {
+		return "", fmt.Errorf("no branches available")
+	}
+
+	l := fitListLayout(computeLayout(rows))
+	lines := buildFZFLines(rows, l)
+	header := pickerHeader(l.branchWidth, []headerCol{
+		{colTitleBranch, 0},
+		{colTitlePath, l.pathWidth},
+		{colTitleState, l.stateWidth},
+		{colTitleRelation, l.relationWidth},
+		{colTitleCommit, l.commitWidth},
+	})
+	const promptColor = "#7fd4ff"
+	return pickBranch(lines, "create> ",
+		"--color=prompt:"+promptColor,
+		"--header="+header,
+	)
+}
+
 func PickRemoveBranch(commandCtx context.Context, entries []gitx.Worktree, currentBranch string, ctx *gitx.RepoContext) (string, error) {
 	branches := make([]string, 0, len(entries))
 	for _, worktree := range entries {

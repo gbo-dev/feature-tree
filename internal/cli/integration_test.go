@@ -103,6 +103,19 @@ func TestSwitchWithoutBranchInNonInteractiveSessionFails(t *testing.T) {
 	assertNoOutputOnError(t, stdout, stderr)
 }
 
+func TestCreateWithoutBranchInNonInteractiveSessionFails(t *testing.T) {
+	_, mainWorktreePath := setupCLIRepo(t)
+
+	stdout, stderr, err := runRootCommand(t, mainWorktreePath, "create")
+	if err == nil {
+		t.Fatalf("ft create without branch expected non-interactive error")
+	}
+	if !strings.Contains(err.Error(), "no branch specified and no interactive TTY available") {
+		t.Fatalf("ft create error = %q, expected non-interactive message", err.Error())
+	}
+	assertNoOutputOnError(t, stdout, stderr)
+}
+
 func TestListOutsideGitRepoFails(t *testing.T) {
 	nonRepoPath := t.TempDir()
 
