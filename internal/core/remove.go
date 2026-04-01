@@ -99,7 +99,11 @@ func (s *Service) RemoveWorktree(branch string, forceWorktree bool, forceBranch 
 		if err := gitx.CommandError(fmt.Sprintf("delete branch %q", resolvedBranch), stderr, exitCode, runErr, "git branch -d failed"); err != nil {
 			return nil, err
 		}
-		result.DeletedMerged = true
+		if targetRef == s.Ctx.DefaultBranch {
+			result.DeletedMerged = true
+		} else {
+			result.DeletedClean = true
+		}
 		return result, nil
 	}
 

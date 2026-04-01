@@ -73,6 +73,8 @@ func newRemoveCmd() *cobra.Command {
 				fmt.Fprintf(cmd.OutOrStdout(), "Removed worktree: %s\n", result.Path)
 			} else if result.DeletedMerged {
 				fmt.Fprintf(cmd.OutOrStdout(), "Removed worktree and deleted merged branch: %s\n", result.Branch)
+			} else if result.DeletedClean {
+				fmt.Fprintf(cmd.OutOrStdout(), "Removed worktree and deleted branch: %s (no local commits)\n", result.Branch)
 			} else if result.DeletedForced {
 				fmt.Fprintf(cmd.OutOrStdout(), "Removed worktree and force-deleted branch: %s\n", result.Branch)
 			} else {
