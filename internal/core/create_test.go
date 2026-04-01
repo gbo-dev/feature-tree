@@ -2,9 +2,11 @@ package core
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/gbo-dev/feature-tree/internal/gitx"
+	"github.com/gbo-dev/feature-tree/internal/testutil"
 )
 
 func TestCreateWorktreeCreatesNewBranchAndPath(t *testing.T) {
@@ -43,5 +45,29 @@ func TestCreateWorktreeReturnsExistingWorktreeWithoutCreating(t *testing.T) {
 	}
 	if result.Path != featurePath {
 		t.Fatalf("CreateWorktree path = %q, want %q", result.Path, featurePath)
+	}
+}
+
+func TestCreateWorktreeUsesExistingLocalBranchWithoutWorktree(t *testing.T) {
+	svc, _, _ := setupServiceWithFeatureWorktree(t)
+
+	branch := "feature-local-only"
+	testutil.RunGit(t, "", "--git-dir", svc.Ctx.GitCommonDir, "branch", branch, svc.Ctx.DefaultBranch)
+
+	result, err := svc.CreateWorktree(branch, "")
+	if err != nil {
+		t.Fatalf("CreateWorktree returned error: %v", err)
+	}
+	if !result.Created {
+		t.Fatalf("CreateWorktree Created = false, want true")
+	}
+	if result.Branch != branch {
+		t.Fatalf("CreateWorktree branch = %q, want %q", result.Branch, branch)
+	}
+	if _, err := os.Stat(result.Path); err != nil {
+		t.Fatalf("expected created worktree path %q to exist: %v", result.Path, err)
+	}
+	if filepath.Base(result.Path) != SanitizeBranchName(branch) {
+		t.Fatalf("CreateWorktree path base = %q, want %q", filepath.Base(result.Path), SanitizeBranchName(branch))
 	}
 }
