@@ -54,8 +54,8 @@ Notes:
   - list markers: @ is current branch worktree, ^ is default branch worktree.
   - STATE symbols: + staged, ! unstaged, ? untracked; combinations (e.g. +!?) mean multiple states.
   - switch without branch opens fzf picker when running in a TTY.
-  - create without branch opens fzf picker when running in a TTY.
-  - create picker shows worktree branches by default; use --all-branches to include all local branches.
+  - create without branch requires an explicit name unless --all-branches is used.
+  - create --all-branches without branch opens fzf picker when running in a TTY.
   - switch/create auto-cd when shell integration is active.
   - Enable integration with: eval "$(ft init zsh)"
   - Tab completion includes branch/worktree names for switch/create and --base.

@@ -108,10 +108,23 @@ func TestCreateWithoutBranchInNonInteractiveSessionFails(t *testing.T) {
 
 	stdout, stderr, err := runRootCommand(t, mainWorktreePath, "create")
 	if err == nil {
-		t.Fatalf("ft create without branch expected non-interactive error")
+		t.Fatalf("ft create without branch expected branch-required error")
+	}
+	if !strings.Contains(err.Error(), "branch name is required") {
+		t.Fatalf("ft create error = %q, expected branch-required message", err.Error())
+	}
+	assertNoOutputOnError(t, stdout, stderr)
+}
+
+func TestCreateAllBranchesWithoutBranchInNonInteractiveSessionFails(t *testing.T) {
+	_, mainWorktreePath := setupCLIRepo(t)
+
+	stdout, stderr, err := runRootCommand(t, mainWorktreePath, "create", "--all-branches")
+	if err == nil {
+		t.Fatalf("ft create --all-branches without branch expected non-interactive error")
 	}
 	if !strings.Contains(err.Error(), "no branch specified and no interactive TTY available") {
-		t.Fatalf("ft create error = %q, expected non-interactive message", err.Error())
+		t.Fatalf("ft create --all-branches error = %q, expected non-interactive message", err.Error())
 	}
 	assertNoOutputOnError(t, stdout, stderr)
 }

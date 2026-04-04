@@ -40,6 +40,10 @@ func newCreateCmd() *cobra.Command {
 			if len(args) == 1 {
 				branch = args[0]
 			} else {
+				if !includeAllBranches {
+					return fmt.Errorf("ft: branch name is required")
+				}
+
 				entries, err := gitx.ListWorktrees(cmd.Context(), svc.Ctx)
 				if err != nil {
 					return err
