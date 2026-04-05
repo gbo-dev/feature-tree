@@ -25,7 +25,11 @@ func RunGit(ctx context.Context, dir string, args ...string) (stdout string, std
 
 func RunGitCommon(commandCtx context.Context, repoCtx *RepoContext, args ...string) (stdout string, stderr string, exitCode int, err error) {
 	fullArgs := append([]string{"--git-dir", repoCtx.GitCommonDir}, args...)
-	return runCommand(normalizeCommandContext(commandCtx), "", "git", fullArgs...)
+	workingDir := ""
+	if repoCtx != nil {
+		workingDir = strings.TrimSpace(repoCtx.RepoRoot)
+	}
+	return runCommand(normalizeCommandContext(commandCtx), workingDir, "git", fullArgs...)
 }
 
 func runCommand(commandCtx context.Context, dir string, name string, args ...string) (stdout string, stderr string, exitCode int, err error) {
