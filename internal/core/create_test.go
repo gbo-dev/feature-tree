@@ -43,7 +43,9 @@ func TestCreateWorktreeReturnsExistingWorktreeWithoutCreating(t *testing.T) {
 	if result.Created {
 		t.Fatalf("CreateWorktree Created = true, want false for existing branch")
 	}
-	if result.Path != featurePath {
+	gotPath := testutil.CanonicalPath(t, result.Path)
+	wantPath := testutil.CanonicalPath(t, featurePath)
+	if gotPath != wantPath {
 		t.Fatalf("CreateWorktree path = %q, want %q", result.Path, featurePath)
 	}
 }

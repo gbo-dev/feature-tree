@@ -61,6 +61,22 @@ func Chdir(t *testing.T, dir string) {
 	})
 }
 
+func CanonicalPath(t *testing.T, path string) string {
+	t.Helper()
+
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		t.Fatalf("resolve absolute path %q: %v", path, err)
+	}
+
+	resolved, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		return filepath.Clean(abs)
+	}
+
+	return filepath.Clean(resolved)
+}
+
 func InitRepoWithMain(t *testing.T, dir string) {
 	t.Helper()
 
