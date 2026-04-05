@@ -28,6 +28,13 @@ type SwitchResult struct {
 	DidSwitch bool
 }
 
+type PRResult struct {
+	Number  int
+	Path    string
+	Branch  string
+	Created bool
+}
+
 type RemoveResult struct {
 	Branch            string
 	Path              string

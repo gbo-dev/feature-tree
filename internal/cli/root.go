@@ -23,6 +23,7 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newCloneCmd())
 	cmd.AddCommand(newCreateCmd())
 	cmd.AddCommand(newSwitchCmd())
+	cmd.AddCommand(newPRCmd())
 	cmd.AddCommand(newIncludeCmd())
 	cmd.AddCommand(newSquashCmd())
 	cmd.AddCommand(newRemoveCmd())
@@ -40,6 +41,7 @@ Usage:
   ft clone <url> [dir]
   ft switch [--create] [--base <branch>] [branch]
   ft create [--all-branches] [--base <branch>] [branch]
+  ft pr <num>
   ft list
   ft remove [branch] [-f|--force-worktree] [-D|--force-branch] [--no-delete-branch]
   ft squash [--base <branch>]

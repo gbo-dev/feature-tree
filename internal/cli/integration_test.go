@@ -346,6 +346,80 @@ func TestRemoveAtShortcutAtDetachedHeadFails(t *testing.T) {
 	assertNoOutputOnError(t, stdout, stderr)
 }
 
+func TestPRCommandFetchesAndCreatesWorktree(t *testing.T) {
+	repoRoot, mainWorktreePath := setupCLIRepo(t)
+	t.Setenv(shell.EmitCDEnv, shell.EmitCDValue)
+
+	testutil.RunGit(t, "", "--git-dir", filepath.Join(repoRoot, ".git"), "update-ref", "refs/pull/123/head", "main")
+
+	stdout, stderr, err := runRootCommand(t, mainWorktreePath, "pr", "123")
+	if err != nil {
+		t.Fatalf("ft pr returned error: %v", err)
+	}
+	if !strings.Contains(stdout, "Created worktree: pull/123 ->") {
+		t.Fatalf("ft pr output missing created message, got: %q", stdout)
+	}
+	if !strings.Contains(stdout, "Switched to pull/123") {
+		t.Fatalf("ft pr output missing switched message, got: %q", stdout)
+	}
+	if !strings.Contains(stdout, shell.CDMarkerPrefix) {
+		t.Fatalf("ft pr output missing cd marker, got: %q", stdout)
+	}
+	if strings.TrimSpace(stderr) != "" {
+		t.Fatalf("ft pr stderr = %q, want empty", stderr)
+	}
+}
+
+func TestPRCommandReusesExistingWorktree(t *testing.T) {
+	repoRoot, mainWorktreePath := setupCLIRepo(t)
+	t.Setenv(shell.EmitCDEnv, shell.EmitCDValue)
+
+	pullBranchPath := filepath.Join(repoRoot, "pull-456")
+	testutil.RunGit(t, "", "--git-dir", filepath.Join(repoRoot, ".git"), "worktree", "add", "-b", "pull/456", pullBranchPath, "main")
+
+	testutil.RunGit(t, "", "--git-dir", filepath.Join(repoRoot, ".git"), "update-ref", "refs/pull/456/head", "pull/456")
+
+	stdout, stderr, err := runRootCommand(t, mainWorktreePath, "pr", "456")
+	if err != nil {
+		t.Fatalf("ft pr returned error: %v", err)
+	}
+	if !strings.Contains(stdout, "Already exists: pull/456") {
+		t.Fatalf("ft pr output missing exists message, got: %q", stdout)
+	}
+	if !strings.Contains(stdout, "Switched to pull/456") {
+		t.Fatalf("ft pr output missing switched message, got: %q", stdout)
+	}
+	if strings.TrimSpace(stderr) != "" {
+		t.Fatalf("ft pr stderr = %q, want empty", stderr)
+	}
+}
+
+func TestPRCommandInvalidPRNumber(t *testing.T) {
+	_, mainWorktreePath := setupCLIRepo(t)
+
+	stdout, stderr, err := runRootCommand(t, mainWorktreePath, "pr", "abc")
+	if err == nil {
+		t.Fatalf("ft pr with invalid PR number expected error")
+	}
+	if !strings.Contains(err.Error(), "not a valid PR number") {
+		t.Fatalf("ft pr error = %q, expected invalid PR number message", err.Error())
+	}
+	assertNoOutputOnError(t, stdout, stderr)
+}
+
+func TestPRCommandNoPRArgument(t *testing.T) {
+	_, mainWorktreePath := setupCLIRepo(t)
+
+	stdout, stderr, err := runRootCommand(t, mainWorktreePath, "pr")
+	if err == nil {
+		t.Fatalf("ft pr without PR number expected error")
+	}
+	if !strings.Contains(err.Error(), "requires exactly one argument") {
+		t.Fatalf("ft pr error = %q, expected argument required message", err.Error())
+	}
+	assertNoOutputOnError(t, stdout, stderr)
+}
+
 func setupCLIRepo(t *testing.T) (string, string) {
 	t.Helper()
 
