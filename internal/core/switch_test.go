@@ -3,6 +3,8 @@ package core
 import (
 	"os"
 	"testing"
+
+	"github.com/gbo-dev/feature-tree/internal/testutil"
 )
 
 func TestSwitchReturnsExistingWorktreePath(t *testing.T) {
@@ -15,7 +17,9 @@ func TestSwitchReturnsExistingWorktreePath(t *testing.T) {
 	if !result.DidSwitch {
 		t.Fatalf("Switch DidSwitch = false, want true")
 	}
-	if result.Path != featurePath {
+	gotPath := testutil.CanonicalPath(t, result.Path)
+	wantPath := testutil.CanonicalPath(t, featurePath)
+	if gotPath != wantPath {
 		t.Fatalf("Switch path = %q, want %q", result.Path, featurePath)
 	}
 	if result.Created {

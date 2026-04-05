@@ -23,11 +23,14 @@ func TestWorktreeHelpersListAndBranchQueries(t *testing.T) {
 
 	mainFound := false
 	featureFound := false
+	wantMainPath := testutil.CanonicalPath(t, mainWorktreePath)
+	wantFeaturePath := testutil.CanonicalPath(t, featureWorktreePath)
 	for _, entry := range entries {
-		if entry.Path == mainWorktreePath && entry.Branch == "main" {
+		entryPath := testutil.CanonicalPath(t, entry.Path)
+		if entryPath == wantMainPath && entry.Branch == "main" {
 			mainFound = true
 		}
-		if entry.Path == featureWorktreePath && entry.Branch == "feature-worktree" {
+		if entryPath == wantFeaturePath && entry.Branch == "feature-worktree" {
 			featureFound = true
 		}
 	}
