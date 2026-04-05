@@ -40,6 +40,82 @@ func TestEnsureWorktreeSafeToRemoveRejectsDirtyWorktree(t *testing.T) {
 	}
 }
 
+func TestRemoveWorktreeFromInsideTargetWorktree(t *testing.T) {
+	svc, featurePath, branch := setupServiceWithFeatureWorktree(t)
+
+	originalWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd failed: %v", err)
+	}
+	if err := os.Chdir(featurePath); err != nil {
+		t.Fatalf("chdir to feature worktree failed: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(originalWD)
+	})
+
+	result, err := svc.RemoveWorktree(branch, false, false, false)
+	if err != nil {
+		t.Fatalf("RemoveWorktree returned unexpected error: %v", err)
+	}
+	if !result.DeletedIdentical {
+		t.Fatalf("RemoveWorktree result = %+v, expected identical-branch deletion", result)
+	}
+
+	_, _, gitErr := testutil.RunGitWithError(t, svc.Ctx.RepoRoot, "--git-dir", svc.Ctx.GitCommonDir, "show-ref", "--verify", "--quiet", "refs/heads/"+branch)
+	if gitErr == nil {
+		t.Fatalf("branch %q should be deleted after successful remove", branch)
+	}
+}
+
+func TestRemoveWorktreeReportsEquivalentWhenNetChangesAreZero(t *testing.T) {
+	svc, featurePath, branch := setupServiceWithFeatureWorktree(t)
+
+	tempFile := filepath.Join(featurePath, "EQUIVALENT.txt")
+	if err := os.WriteFile(tempFile, []byte("temporary content\n"), 0o644); err != nil {
+		t.Fatalf("write equivalent temp file: %v", err)
+	}
+	testutil.RunGit(t, featurePath, "add", "EQUIVALENT.txt")
+	testutil.RunGit(t, featurePath, "commit", "-m", "add temporary file")
+
+	testutil.RunGit(t, featurePath, "rm", "EQUIVALENT.txt")
+	testutil.RunGit(t, featurePath, "commit", "-m", "remove temporary file")
+
+	result, err := svc.RemoveWorktree(branch, false, false, false)
+	if err != nil {
+		t.Fatalf("RemoveWorktree returned unexpected error: %v", err)
+	}
+	if !result.DeletedEquivalent {
+		t.Fatalf("RemoveWorktree result = %+v, expected equivalent-branch deletion", result)
+	}
+
+	_, _, gitErr := testutil.RunGitWithError(t, svc.Ctx.RepoRoot, "--git-dir", svc.Ctx.GitCommonDir, "show-ref", "--verify", "--quiet", "refs/heads/"+branch)
+	if gitErr == nil {
+		t.Fatalf("branch %q should be deleted after equivalent remove", branch)
+	}
+}
+
+func TestBranchDeletionRelationEquivalentWithoutDefaultBranchMerge(t *testing.T) {
+	svc, featurePath, branch := setupServiceWithFeatureWorktree(t)
+
+	tempFile := filepath.Join(featurePath, "EQUIVALENT-RELATION.txt")
+	if err := os.WriteFile(tempFile, []byte("temporary content\n"), 0o644); err != nil {
+		t.Fatalf("write equivalent relation file: %v", err)
+	}
+	testutil.RunGit(t, featurePath, "add", "EQUIVALENT-RELATION.txt")
+	testutil.RunGit(t, featurePath, "commit", "-m", "add temp relation file")
+	testutil.RunGit(t, featurePath, "rm", "EQUIVALENT-RELATION.txt")
+	testutil.RunGit(t, featurePath, "commit", "-m", "remove temp relation file")
+
+	relation, err := svc.branchDeletionRelation(branch, svc.Ctx.DefaultBranch)
+	if err != nil {
+		t.Fatalf("branchDeletionRelation returned unexpected error: %v", err)
+	}
+	if relation != branchDeletionEquivalent {
+		t.Fatalf("branchDeletionRelation = %v, want %v", relation, branchDeletionEquivalent)
+	}
+}
+
 func TestEnsureWorktreeSafeToRemoveAllowsCleanBranchWithoutUpstreamWhenDeletable(t *testing.T) {
 	svc, featurePath, branch := setupServiceWithFeatureWorktree(t)
 
