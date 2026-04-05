@@ -29,15 +29,16 @@ type SwitchResult struct {
 }
 
 type RemoveResult struct {
-	Branch         string
-	Path           string
-	FallbackPath   string
-	TargetRef      string
-	DeletedMerged  bool
-	DeletedClean   bool
-	DeletedForced  bool
-	KeptBranch     bool
-	NoDeleteBranch bool
+	Branch            string
+	Path              string
+	FallbackPath      string
+	TargetRef         string
+	DeletedMerged     bool
+	DeletedIdentical  bool
+	DeletedEquivalent bool
+	DeletedForced     bool
+	KeptBranch        bool
+	NoDeleteBranch    bool
 }
 
 func NewService(commandCtx context.Context) (*Service, error) {

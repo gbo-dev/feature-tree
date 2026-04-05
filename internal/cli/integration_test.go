@@ -148,14 +148,74 @@ func TestRemoveReportsCleanDeletionWithoutMergedClaim(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ft remove feature-clean returned error: %v", err)
 	}
-	if !strings.Contains(stdout, "Removed worktree and deleted branch: feature-clean (no local commits)") {
-		t.Fatalf("ft remove output missing clean deletion message, got: %q", stdout)
+	if !strings.Contains(stdout, "Removed worktree and deleted branch: feature-clean (fully contained in origin/main)") {
+		t.Fatalf("ft remove output missing contained-in-target message, got: %q", stdout)
 	}
 	if strings.Contains(stdout, "deleted merged branch") {
 		t.Fatalf("ft remove output should not claim merged deletion, got: %q", stdout)
 	}
 	if strings.TrimSpace(stderr) != "" {
 		t.Fatalf("ft remove stderr = %q, want empty", stderr)
+	}
+}
+
+func TestRemoveReportsEquivalentDeletionMessage(t *testing.T) {
+	repoRoot, mainWorktreePath := setupCLIRepo(t)
+	t.Setenv(shell.EmitCDEnv, shell.EmitCDValue)
+
+	if _, _, err := runRootCommand(t, mainWorktreePath, "create", "feature-equivalent"); err != nil {
+		t.Fatalf("ft create feature-equivalent returned error: %v", err)
+	}
+
+	featurePath := filepath.Join(repoRoot, "feature-equivalent")
+	tempFile := filepath.Join(featurePath, "EQUIVALENT.txt")
+	if err := os.WriteFile(tempFile, []byte("temporary content\n"), 0o644); err != nil {
+		t.Fatalf("write equivalent temp file: %v", err)
+	}
+	testutil.RunGit(t, featurePath, "add", "EQUIVALENT.txt")
+	testutil.RunGit(t, featurePath, "commit", "-m", "add temporary file")
+	testutil.RunGit(t, featurePath, "rm", "EQUIVALENT.txt")
+	testutil.RunGit(t, featurePath, "commit", "-m", "remove temporary file")
+
+	stdout, stderr, err := runRootCommand(t, mainWorktreePath, "remove", "feature-equivalent")
+	if err != nil {
+		t.Fatalf("ft remove feature-equivalent returned error: %v", err)
+	}
+	if !strings.Contains(stdout, "Removed worktree and deleted branch: feature-equivalent (no effective changes vs main)") {
+		t.Fatalf("ft remove output missing equivalent-deletion message, got: %q", stdout)
+	}
+	if strings.Contains(stdout, "force-deleted") {
+		t.Fatalf("ft remove output should not claim force deletion, got: %q", stdout)
+	}
+	if strings.TrimSpace(stderr) != "" {
+		t.Fatalf("ft remove stderr = %q, want empty", stderr)
+	}
+}
+
+func TestRemoveFromInsideTargetWorktreeEmitsFallbackCDMarker(t *testing.T) {
+	repoRoot, mainWorktreePath := setupCLIRepo(t)
+	t.Setenv(shell.EmitCDEnv, shell.EmitCDValue)
+
+	if _, _, err := runRootCommand(t, mainWorktreePath, "create", "feature-self-remove"); err != nil {
+		t.Fatalf("ft create feature-self-remove returned error: %v", err)
+	}
+
+	featurePath := filepath.Join(repoRoot, "feature-self-remove")
+	stdout, stderr, err := runRootCommand(t, featurePath, "remove")
+	if err != nil {
+		t.Fatalf("ft remove from target worktree returned error: %v", err)
+	}
+	canonicalMainPath := testutil.CanonicalPath(t, mainWorktreePath)
+	canonicalMarker := shell.CDMarkerPrefix + canonicalMainPath
+	if !strings.Contains(stdout, canonicalMarker) {
+		t.Fatalf("ft remove output missing fallback cd marker, got: %q", stdout)
+	}
+	if strings.TrimSpace(stderr) != "" {
+		t.Fatalf("ft remove stderr = %q, want empty", stderr)
+	}
+
+	if _, statErr := os.Stat(featurePath); !os.IsNotExist(statErr) {
+		t.Fatalf("feature worktree path should be removed, stat error: %v", statErr)
 	}
 }
 
