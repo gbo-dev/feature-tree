@@ -70,7 +70,7 @@ Then use `ft create <branch>` for any subsequent branches — it handles worktre
 | Command | Description |
 |---|---|
 | `ft clone <url> [dir]` | Clone a repo into bare-in-`.git` layout with an initial worktree |
-| `ft switch [branch]` | Switch to an existing worktree; opens fzf picker if no branch given |
+| `ft switch [branch]` | Switch to an existing worktree; opens fzf picker if no branch given (`tab`/`shift-tab` preview tabs in picker) |
 | `ft create [branch]` | Create a branch worktree; picker opens only with `--all-branches` and no branch |
 | `ft list` | List worktrees with status |
 | `ft remove [branch]` | Remove a worktree (and optionally its branch) |

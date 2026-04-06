@@ -29,6 +29,9 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newRemoveCmd())
 	cmd.AddCommand(newCompletionCmd())
 	cmd.AddCommand(newInitCmd())
+	cmd.AddCommand(newPickerPreviewCmd())
+	cmd.AddCommand(newPickerPreviewStateCmd())
+	cmd.AddCommand(newPickerPreviewTabCmd())
 
 	cmd.SetHelpTemplate(helpTemplate)
 
@@ -55,7 +58,7 @@ Notes:
   - Uses include manifest from default branch worktree (default: .worktreeinclude).
   - list markers: @ is current branch worktree, ^ is default branch worktree.
   - STATE symbols: + staged, ! unstaged, ? untracked; combinations (e.g. +!?) mean multiple states.
-  - switch without branch opens fzf picker when running in a TTY.
+  - switch without branch opens fzf picker when running in a TTY (preview tabs: tab/shift-tab).
   - create without branch requires an explicit name unless --all-branches is used.
   - create --all-branches without branch opens fzf picker when running in a TTY.
   - switch/create auto-cd when shell integration is active.

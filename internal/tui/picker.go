@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"strconv"
 	"strings"
 
 	fzf "github.com/junegunn/fzf/src"
@@ -74,6 +76,7 @@ type pickerRow struct {
 	relation string
 	current  bool
 	marker   string
+	hidden   []string
 }
 
 type headerCol struct {
@@ -228,6 +231,16 @@ func PickSwitchBranch(commandCtx context.Context, entries []gitx.Worktree, curre
 		return "", fmt.Errorf("no worktrees available")
 	}
 
+	previewCache, cleanupPreviewCache, cacheErr := buildSwitchPreviewCache(commandCtx, ctx, rows)
+	if cacheErr == nil {
+		defer cleanupPreviewCache()
+		for i := range rows {
+			if tabs, ok := previewCache.tabsByBranch[rows[i].branch]; ok {
+				rows[i].hidden = []string{tabs.headPath, tabs.logPath, tabs.defaultDiffPath, tabs.upstreamDiffPath}
+			}
+		}
+	}
+
 	l := fitListLayout(computeLayout(rows))
 	lines := buildFZFLines(rows, l)
 	header := pickerHeader(l.branchWidth, []headerCol{
@@ -238,10 +251,24 @@ func PickSwitchBranch(commandCtx context.Context, entries []gitx.Worktree, curre
 		{colTitleCommit, l.commitWidth},
 	})
 	const promptColor = "#8787ff"
-	return pickBranch(lines, "switch> ",
-		"--color=prompt:"+promptColor,
-		"--header="+header,
-	)
+	extraArgs := []string{
+		"--color=prompt:" + promptColor,
+		"--header=" + header,
+	}
+	if cacheErr == nil {
+		nextTabCommand := switchPreviewStateCommand(previewCache.stateFile, 1)
+		prevTabCommand := switchPreviewStateCommand(previewCache.stateFile, -1)
+		renderCommand := switchPreviewRenderCommand(previewCache.stateFile)
+		extraArgs = append(extraArgs,
+			"--preview="+renderCommand,
+			"--preview-window=down,70%,wrap,border-top,~1,noinfo",
+			"--bind=tab:execute-silent("+nextTabCommand+")+refresh-preview",
+			"--bind=btab:execute-silent("+prevTabCommand+")+refresh-preview",
+			"--bind=shift-tab:execute-silent("+prevTabCommand+")+refresh-preview",
+		)
+	}
+
+	return pickBranch(lines, "switch> ", extraArgs...)
 }
 
 func PickCreateBranch(commandCtx context.Context, entries []gitx.Worktree, currentBranch string, ctx *gitx.RepoContext, includeAllBranches bool) (string, error) {
@@ -413,7 +440,8 @@ func fzfBaseArgs() []string {
 		"--delimiter=\t",
 		"--with-nth=1",
 		"--layout=reverse",
-		"--height=~40%",
+		"--height=~100%",
+		"--min-height=26+",
 		"--border=sharp",
 		"--pointer=◆",
 		"--marker=>",
@@ -475,8 +503,8 @@ func runFZF(lines []string, prompt string, extraArgs ...string) (string, error) 
 	}
 }
 
-// buildFZFLines emits "display\tbranch". The hidden branch payload after the
-// tab is used by parseSelectedBranch to extract the raw selection.
+// buildFZFLines emits "display\tbranch[\thidden...]". The hidden payload fields
+// after the first tab are for preview and parseSelectedBranch ignores them.
 func buildFZFLines(rows []pickerRow, l rowLayout) []string {
 	lines := make([]string, 0, len(rows))
 	for _, row := range rows {
@@ -520,7 +548,11 @@ func buildFZFLines(rows []pickerRow, l rowLayout) []string {
 		}
 
 		display := prefix + branchField + strings.Join(parts, "  ")
-		lines = append(lines, strings.TrimRight(display, " ")+"\t"+row.branch)
+		payload := row.branch
+		if len(row.hidden) > 0 {
+			payload += "\t" + strings.Join(row.hidden, "\t")
+		}
+		lines = append(lines, strings.TrimRight(display, " ")+"\t"+payload)
 	}
 	return lines
 }
@@ -531,14 +563,34 @@ func parseSelectedBranch(selected string) (string, error) {
 		return "", ErrSelectionCancelled
 	}
 
-	if idx := strings.Index(selected, "\t"); idx >= 0 {
-		branch := strings.TrimSpace(selected[idx+1:])
+	if strings.Contains(selected, "\t") {
+		parts := strings.Split(selected, "\t")
+		if len(parts) < 2 {
+			return "", fmt.Errorf("could not extract branch from fzf output")
+		}
+		branch := strings.TrimSpace(parts[1])
 		if branch != "" {
 			return branch, nil
 		}
 	}
 
 	return "", fmt.Errorf("could not extract branch from fzf output")
+}
+
+func switchPreviewStateCommand(stateFile string, step int) string {
+	exe := "ft"
+	if resolved, err := os.Executable(); err == nil && strings.TrimSpace(resolved) != "" {
+		exe = resolved
+	}
+	return strconv.Quote(exe) + " __picker-preview-state --state-file " + strconv.Quote(stateFile) + " --step " + strconv.Itoa(step)
+}
+
+func switchPreviewRenderCommand(stateFile string) string {
+	exe := "ft"
+	if resolved, err := os.Executable(); err == nil && strings.TrimSpace(resolved) != "" {
+		exe = resolved
+	}
+	return strconv.Quote(exe) + " __picker-preview-tab --state-file " + strconv.Quote(stateFile) + " {3} {4} {5} {6}"
 }
 
 func PrintWorktreeList(commandCtx context.Context, entries []gitx.Worktree, currentBranch string, ctx *gitx.RepoContext, w io.Writer) error {
