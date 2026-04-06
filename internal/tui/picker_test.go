@@ -17,6 +17,16 @@ func TestParseSelectedBranch(t *testing.T) {
 	}
 }
 
+func TestParseSelectedBranchIgnoresExtendedHiddenPayload(t *testing.T) {
+	branch, err := parseSelectedBranch("display\tfeature/test\t/tmp/head.txt\t/tmp/log.txt")
+	if err != nil {
+		t.Fatalf("parseSelectedBranch returned error: %v", err)
+	}
+	if branch != "feature/test" {
+		t.Fatalf("parseSelectedBranch = %q, want %q", branch, "feature/test")
+	}
+}
+
 func TestParseSelectedBranchRejectsMissingPayload(t *testing.T) {
 	_, err := parseSelectedBranch("display only")
 	if err == nil {
@@ -43,6 +53,28 @@ func TestBuildFZFLinesEmitsHiddenBranchPayload(t *testing.T) {
 	}
 	if !strings.HasSuffix(lines[0], "\tfeature/demo") {
 		t.Fatalf("buildFZFLines output missing hidden payload: %q", lines[0])
+	}
+}
+
+func TestBuildFZFLinesAppendsHiddenFields(t *testing.T) {
+	rows := []pickerRow{
+		{
+			branch:   "feature/demo",
+			commit:   gitx.CommitInfo{Hash: "abcd", Subject: "demo subject"},
+			path:     "../feature-demo",
+			state:    "clean",
+			relation: "A: 1 B: 0",
+			hidden:   []string{"/tmp/head.txt", "/tmp/log.txt"},
+		},
+	}
+
+	layout := computeLayout(rows)
+	lines := buildFZFLines(rows, layout)
+	if len(lines) != 1 {
+		t.Fatalf("buildFZFLines len = %d, want 1", len(lines))
+	}
+	if !strings.HasSuffix(lines[0], "\tfeature/demo\t/tmp/head.txt\t/tmp/log.txt") {
+		t.Fatalf("buildFZFLines output missing appended hidden fields: %q", lines[0])
 	}
 }
 
