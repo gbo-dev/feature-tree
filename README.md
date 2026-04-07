@@ -35,6 +35,8 @@ Add this line to your `~/.zshrc` or `~/.bashrc` (it evaluates the shell function
 eval "$(ft init zsh)"    # or bash
 ```
 
+Or simply copy the output of `ft init zsh` to your `.zshrc`.
+
 Remember to open a new shell (or `source ~/.zshrc`) for it to take effect.
 
 ## Expected repository structure
