@@ -139,13 +139,10 @@ func DirtySymbols(commandCtx context.Context, path string) (string, error) {
 
 func DirtyState(symbols string) string {
 	symbols = strings.TrimSpace(symbols)
-	if symbols == "" || symbols == "?" {
-		return "dirty"
-	}
-	if symbols == "clean" {
+	if symbols == "" || symbols == "clean" {
 		return "clean"
 	}
-	return fmt.Sprintf("dirty (%s)", symbols)
+	return symbols
 }
 
 func BranchRelation(commandCtx context.Context, ctx *RepoContext, branch string) (string, error) {

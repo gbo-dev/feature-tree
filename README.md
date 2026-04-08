@@ -72,7 +72,7 @@ Then use `ft create <branch>` for any subsequent branches — it handles worktre
 | Command | Description |
 |---|---|
 | `ft clone <url> [dir]` | Clone a repo into bare-in-`.git` layout with an initial worktree |
-| `ft switch [branch]` | Switch to an existing worktree; opens fzf picker if no branch given (`tab`/`shift-tab` preview tabs in picker) |
+| `ft switch [branch]` | Switch to an existing worktree; opens fzf picker if no branch given (`tab`/`s-tab` preview tabs in picker) |
 | `ft create [branch]` | Create a branch worktree; picker opens only with `--all-branches` and no branch |
 | `ft list` | List worktrees with status |
 | `ft remove [branch]` | Remove a worktree (and optionally its branch) |
@@ -90,6 +90,15 @@ Run `ft help` for flag details.
 - the branch has local commits not pushed to its upstream
 
 Pass `-f` / `--force-worktree` to override. Pass `-D` / `--force-branch` to force-delete the branch regardless of merge status.
+
+## STATE values
+
+In list and picker views, `STATE` is shown as:
+- `clean` when there are no local changes
+- `+` for staged changes
+- `!` for unstaged changes
+- `?` for untracked files
+- combinations like `+!`, `!?`, or `+!?` when multiple apply
 
 ## `ft clone`
 

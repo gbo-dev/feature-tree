@@ -21,6 +21,14 @@ func newSwitchCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "switch [branch]",
 		Short: "Switch to an existing worktree branch",
+		Long: `Switch to an existing worktree branch.
+
+Interactive picker notes:
+- STATE shows clean or combinations of +, !, ?
+- + means staged changes
+- ! means unstaged changes
+- ? means untracked files
+- Preview tabs: tab/s-tab`,
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 			return completeSwitchBranches(cmd, args, toComplete)
 		},

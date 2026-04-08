@@ -7,19 +7,14 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gbo-dev/feature-tree/internal/textwidth"
+	"github.com/gbo-dev/feature-tree/internal/uiansi"
 	"github.com/spf13/cobra"
 )
 
 const switchPreviewTabCount = 4
 
-const (
-	ansiReset         = "\x1b[0m"
-	ansiTabActiveBg   = "\x1b[48;2;26;46;44m"
-	ansiTabActiveFg   = "\x1b[38;2;244;237;224m"
-	ansiTabInactiveFg = "\x1b[38;5;244m"
-)
-
-var switchPreviewTabLabels = []string{"HEAD+-", "Commit log", "vs. default branch", "vs. upstream"}
+var switchPreviewTabLabels = []string{"Overview", "Commit log", "vs. default", "vs. upstream"}
 
 func newPickerPreviewCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -161,14 +156,43 @@ func readPreviewTabState(stateFile string) (int, error) {
 
 func renderPreviewHeaderLine(activeTab int) string {
 	parts := make([]string, 0, len(switchPreviewTabLabels))
+	plainParts := make([]string, 0, len(switchPreviewTabLabels))
 	for idx, label := range switchPreviewTabLabels {
 		tab := idx + 1
 		padded := " " + label + " "
+		plainParts = append(plainParts, padded)
 		if tab == activeTab {
-			parts = append(parts, ansiTabActiveBg+ansiTabActiveFg+padded+ansiReset)
+			parts = append(parts, uiansi.TabActiveBg+uiansi.TabActiveFg+padded+uiansi.Reset)
 		} else {
-			parts = append(parts, ansiTabInactiveFg+padded+ansiReset)
+			parts = append(parts, uiansi.Grey+padded+uiansi.Reset)
 		}
 	}
-	return strings.Join(parts, " ")
+
+	tabsPlain := strings.Join(plainParts, " ")
+	tabsStyled := strings.Join(parts, " ")
+	hint := "[tab/s-tab]"
+	hintStyled := uiansi.InfoPurple + hint + uiansi.Reset
+
+	cols := previewWidthColumns()
+	if cols <= 0 {
+		return tabsStyled + "  " + hintStyled
+	}
+
+	padding := cols - textwidth.Width(tabsPlain) - textwidth.Width(hint)
+	if padding < 2 {
+		padding = 2
+	}
+	return tabsStyled + strings.Repeat(" ", padding) + hintStyled
+}
+
+func previewWidthColumns() int {
+	raw := strings.TrimSpace(os.Getenv("FZF_PREVIEW_COLUMNS"))
+	if raw == "" {
+		return 0
+	}
+	cols, err := strconv.Atoi(raw)
+	if err != nil || cols <= 0 {
+		return 0
+	}
+	return cols
 }

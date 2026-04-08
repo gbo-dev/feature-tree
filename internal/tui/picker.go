@@ -13,18 +13,17 @@ import (
 
 	"github.com/gbo-dev/feature-tree/internal/gitx"
 	"github.com/gbo-dev/feature-tree/internal/textwidth"
+	"github.com/gbo-dev/feature-tree/internal/uiansi"
 )
 
 var ErrSelectionCancelled = errors.New("selection cancelled")
 
-// Pastel ANSI 256-colour helpers (zero-width for layout purposes).
+const ansiBold = "\x1b[1m"
+
 const (
-	ansiReset      = "\x1b[0m"
-	ansiGrey       = "\x1b[38;5;244m" // muted grey – paths
-	ansiBold       = "\x1b[1m"        // bold
-	ansiGreen      = "\x1b[38;5;114m" // pastel green – current marker
-	ansiYellow     = "\x1b[38;5;228m" // pastel yellow – dirty state
-	ansiPeriwinkle = "\x1b[38;5;111m" // periwinkle – default branch marker
+	ansiPromptSwitch = "\x1b[38;2;135;135;255m"
+	ansiPromptCreate = "\x1b[38;2;127;212;255m"
+	ansiPromptRemove = "\x1b[38;2;255;143;143m"
 )
 
 // Column width caps in visible terminal columns (ANSI codes excluded).
@@ -32,8 +31,10 @@ const (
 	branchDisplayMax   = 30 // right-truncated with ellipsis suffix (preserves meaningful prefix)
 	pathDisplayMax     = 20 // right-truncated with ellipsis suffix (preserves relative-prefix context)
 	commitDisplayMax   = 72 // subject-only commit column (hash omitted)
-	listCommitMax      = 26 // list COMMIT needs to be narrower than fzf (max line len <= 105)
-	stateDisplayMax    = 11 // longest value: "dirty (+!?)" = 11 chars
+	pickerCommitMax    = 120
+	pickerBranchBonus  = 4
+	listCommitMax      = 26 // list HEAD needs to be narrower than fzf (max line len <= 105)
+	stateDisplayMax    = 5  // longest value: "+!?" = 3 chars
 	relationDisplayMax = 12 // longest typical value: "A: 99  B: 99" = 12 chars
 	listLineMaxWidth   = 145
 )
@@ -43,6 +44,7 @@ const (
 	colTitlePath     = "PATH"
 	colTitleState    = "STATE"
 	colTitleRelation = "RELATION"
+	colTitleHead     = "HEAD"
 	colTitleCommit   = "COMMIT"
 )
 
@@ -135,7 +137,10 @@ func computeLayout(rows []pickerRow) rowLayout {
 }
 
 func lineWidth(l rowLayout) int {
-	width := 2 + l.branchWidth + 2 + l.pathWidth
+	width := 2 + l.branchWidth
+	if l.pathWidth > 0 {
+		width += 2 + l.pathWidth
+	}
 	if l.stateWidth > 0 {
 		width += 2 + l.stateWidth
 	}
@@ -161,7 +166,7 @@ func reduceWidth(v *int, minWidth int, overflow int) int {
 
 // fitListLayout shrinks flexible columns until the rendered list row width is
 // <= listLineMaxWidth. Shrink order prioritizes preserving branch/state context:
-// PATH -> COMMIT -> RELATION -> BRANCH -> STATE.
+// PATH -> HEAD -> RELATION -> BRANCH -> STATE.
 func fitListLayout(l rowLayout) rowLayout {
 	overflow := lineWidth(l) - listLineMaxWidth
 	if overflow <= 0 {
@@ -182,6 +187,61 @@ func capListCommitWidth(l rowLayout) rowLayout {
 		l.commitWidth = listCommitMax
 	}
 	return l
+}
+
+func maxBranchWidth(rows []pickerRow) int {
+	w := branchColMinWidth
+	for _, row := range rows {
+		if n := textwidth.Width(row.branch); n > w {
+			w = n
+		}
+	}
+	return w
+}
+
+func maxCommitWidth(rows []pickerRow) int {
+	w := 0
+	for _, row := range rows {
+		if s := row.commit.Display(pickerCommitMax); s != "" {
+			if n := textwidth.Width(s); n > w {
+				w = n
+			}
+		}
+	}
+	if w > 0 && w < colWidthCommit {
+		w = colWidthCommit
+	}
+	return w
+}
+
+func expandBranchCommitLayout(rows []pickerRow, l rowLayout) rowLayout {
+	spare := listLineMaxWidth - lineWidth(l)
+	if spare <= 0 {
+		return l
+	}
+
+	branchTarget := min(maxBranchWidth(rows), l.branchWidth+pickerBranchBonus)
+	if branchTarget > l.branchWidth {
+		add := min(branchTarget-l.branchWidth, spare)
+		l.branchWidth += add
+		spare -= add
+	}
+
+	if spare <= 0 {
+		return l
+	}
+
+	commitTarget := maxCommitWidth(rows)
+	if commitTarget > l.commitWidth {
+		add := min(commitTarget-l.commitWidth, spare)
+		l.commitWidth += add
+	}
+
+	return l
+}
+
+func promptLabel(name string, color string) string {
+	return color + name + uiansi.Reset + "> "
 }
 
 func currentWorktreePath(entries []gitx.Worktree, currentBranch string) string {
@@ -241,18 +301,18 @@ func PickSwitchBranch(commandCtx context.Context, entries []gitx.Worktree, curre
 		}
 	}
 
-	l := fitListLayout(computeLayout(rows))
+	l := computeLayout(rows)
+	l.pathWidth = 0
+	l = fitListLayout(l)
+	l = expandBranchCommitLayout(rows, l)
 	lines := buildFZFLines(rows, l)
 	header := pickerHeader(l.branchWidth, []headerCol{
 		{colTitleBranch, 0},
-		{colTitlePath, l.pathWidth},
 		{colTitleState, l.stateWidth},
 		{colTitleRelation, l.relationWidth},
-		{colTitleCommit, l.commitWidth},
+		{colTitleHead, l.commitWidth},
 	})
-	const promptColor = "#8787ff"
 	extraArgs := []string{
-		"--color=prompt:" + promptColor,
 		"--header=" + header,
 	}
 	if cacheErr == nil {
@@ -265,10 +325,12 @@ func PickSwitchBranch(commandCtx context.Context, entries []gitx.Worktree, curre
 			"--bind=tab:execute-silent("+nextTabCommand+")+refresh-preview",
 			"--bind=btab:execute-silent("+prevTabCommand+")+refresh-preview",
 			"--bind=shift-tab:execute-silent("+prevTabCommand+")+refresh-preview",
+			"--bind=right:execute-silent("+nextTabCommand+")+refresh-preview",
+			"--bind=left:execute-silent("+prevTabCommand+")+refresh-preview",
 		)
 	}
 
-	return pickBranch(lines, "switch> ", extraArgs...)
+	return pickBranch(lines, promptLabel("switch", ansiPromptSwitch), extraArgs...)
 }
 
 func PickCreateBranch(commandCtx context.Context, entries []gitx.Worktree, currentBranch string, ctx *gitx.RepoContext, includeAllBranches bool) (string, error) {
@@ -331,18 +393,18 @@ func PickCreateBranch(commandCtx context.Context, entries []gitx.Worktree, curre
 		return "", fmt.Errorf("no branches available")
 	}
 
-	l := fitListLayout(computeLayout(rows))
+	l := computeLayout(rows)
+	l.pathWidth = 0
+	l = fitListLayout(l)
+	l = expandBranchCommitLayout(rows, l)
 	lines := buildFZFLines(rows, l)
 	header := pickerHeader(l.branchWidth, []headerCol{
 		{colTitleBranch, 0},
-		{colTitlePath, l.pathWidth},
 		{colTitleState, l.stateWidth},
 		{colTitleRelation, l.relationWidth},
 		{colTitleCommit, l.commitWidth},
 	})
-	const promptColor = "#7fd4ff"
-	return pickBranch(lines, "create> ",
-		"--color=prompt:"+promptColor,
+	return pickBranch(lines, promptLabel("create", ansiPromptCreate),
 		"--header="+header,
 	)
 }
@@ -396,11 +458,9 @@ func PickRemoveBranch(commandCtx context.Context, entries []gitx.Worktree, curre
 		{colTitlePath, l.pathWidth},
 		{colTitleState, l.stateWidth},
 		{colTitleRelation, l.relationWidth},
-		{colTitleCommit, l.commitWidth},
+		{colTitleHead, l.commitWidth},
 	})
-	const promptColor = "#ff8f8f"
-	return pickBranch(lines, "remove> ",
-		"--color=prompt:"+promptColor,
+	return pickBranch(lines, promptLabel("remove", ansiPromptRemove),
 		"--header="+header,
 	)
 }
@@ -409,7 +469,7 @@ func pickerHeader(branchWidth int, cols []headerCol) string {
 	branchTitle := cols[0].title
 	pad := branchWidth - len(branchTitle) + 2
 
-	line := ansiGrey + ansiBold + "  " + branchTitle + strings.Repeat(" ", pad)
+	line := uiansi.Grey + ansiBold + "  " + branchTitle + strings.Repeat(" ", pad)
 	for _, col := range cols[1:] {
 		if col.width > len(col.title) {
 			line += col.title + strings.Repeat(" ", col.width-len(col.title)) + "  "
@@ -417,7 +477,7 @@ func pickerHeader(branchWidth int, cols []headerCol) string {
 			line += col.title + "  "
 		}
 	}
-	return strings.TrimRight(line, " ") + ansiReset
+	return strings.TrimRight(line, " ") + uiansi.Reset
 }
 
 func pickBranch(lines []string, prompt string, extraArgs ...string) (string, error) {
@@ -450,8 +510,8 @@ func fzfBaseArgs() []string {
 		"--scrollbar=│",
 		"--info=right",
 		"--color=fg:-1,fg+:#f4ede0:regular,bg:-1,bg+:#1a2e2c",
-		"--color=hl:#48b08f,hl+:#6ce4be,info:#8788b0,marker:#00a6ff",
-		"--color=prompt:#00d6ba,spinner:#a2b9b9,pointer:#5e7eff,header:#87afaf",
+		"--color=hl:#48b08f,hl+:#6ce4be,info:" + uiansi.InfoPurpleHex + ",marker:#00a6ff",
+		"--color=prompt:-1,spinner:#a2b9b9,pointer:#5e7eff,header:#87afaf",
 		"--color=gutter:-1,border:#202020,label:#aeaeae,query:#d9d9d9:regular",
 	}
 }
@@ -511,9 +571,9 @@ func buildFZFLines(rows []pickerRow, l rowLayout) []string {
 		var prefix string
 		switch {
 		case row.current:
-			prefix = ansiGreen + "@ " + ansiReset
+			prefix = uiansi.Green + "@ " + uiansi.Reset
 		case row.marker == "^":
-			prefix = ansiPeriwinkle + "^ " + ansiReset
+			prefix = uiansi.Periwinkle + "^ " + uiansi.Reset
 		default:
 			prefix = "  "
 		}
@@ -523,14 +583,16 @@ func buildFZFLines(rows []pickerRow, l rowLayout) []string {
 
 		var parts []string
 
-		rendered := truncatePath(row.path, l.pathWidth)
-		parts = append(parts, ansiGrey+rendered+ansiReset+strings.Repeat(" ", l.pathWidth-textwidth.Width(rendered)))
+		if l.pathWidth > 0 {
+			rendered := truncatePath(row.path, l.pathWidth)
+			parts = append(parts, uiansi.Grey+rendered+uiansi.Reset+strings.Repeat(" ", l.pathWidth-textwidth.Width(rendered)))
+		}
 
 		if l.stateWidth > 0 && row.state != "" {
 			st := truncateCell(row.state, l.stateWidth)
 			pad := strings.Repeat(" ", l.stateWidth-textwidth.Width(st))
-			if strings.HasPrefix(row.state, "dirty") {
-				parts = append(parts, ansiYellow+st+ansiReset+pad)
+			if row.state != "clean" {
+				parts = append(parts, uiansi.Yellow+st+uiansi.Reset+pad)
 			} else {
 				parts = append(parts, st+pad)
 			}
@@ -538,12 +600,12 @@ func buildFZFLines(rows []pickerRow, l rowLayout) []string {
 
 		if l.relationWidth > 0 && row.relation != "" {
 			rel := truncateCell(row.relation, l.relationWidth)
-			parts = append(parts, ansiGrey+rel+ansiReset+strings.Repeat(" ", l.relationWidth-textwidth.Width(rel)))
+			parts = append(parts, uiansi.Grey+rel+uiansi.Reset+strings.Repeat(" ", l.relationWidth-textwidth.Width(rel)))
 		}
 
 		if l.commitWidth > 0 {
 			if s := row.commit.Display(l.commitWidth); s != "" {
-				parts = append(parts, ansiGrey+s+ansiReset+strings.Repeat(" ", l.commitWidth-textwidth.Width(s)))
+				parts = append(parts, uiansi.Grey+s+uiansi.Reset+strings.Repeat(" ", l.commitWidth-textwidth.Width(s)))
 			}
 		}
 
@@ -636,7 +698,7 @@ func PrintWorktreeList(commandCtx context.Context, entries []gitx.Worktree, curr
 		{colTitlePath, l.pathWidth},
 		{colTitleState, l.stateWidth},
 		{colTitleRelation, l.relationWidth},
-		{colTitleCommit, l.commitWidth},
+		{colTitleHead, l.commitWidth},
 	})
 	fmt.Fprintln(w, header)
 
