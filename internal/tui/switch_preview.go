@@ -10,12 +10,14 @@ import (
 	"sync"
 
 	"github.com/gbo-dev/feature-tree/internal/gitx"
+	"github.com/gbo-dev/feature-tree/internal/textwidth"
 	"github.com/gbo-dev/feature-tree/internal/uiansi"
 )
 
 const (
 	maxSwitchPreviewWorkers = 6
 	switchLogLimit          = 30
+	switchLogAgeWidth       = 12
 )
 
 type switchPreviewTabPaths struct {
@@ -233,7 +235,12 @@ func renderSwitchLogTable(entries []switchLogEntry) string {
 			b.WriteString(strings.Repeat(" ", pad))
 		}
 		b.WriteString("  ")
-		b.WriteString(uiansi.Grey + fmt.Sprintf("%-12s", entry.age) + uiansi.Reset)
+		b.WriteString(uiansi.Grey)
+		b.WriteString(entry.age)
+		if pad := switchLogAgeWidth - textwidth.Width(entry.age); pad > 0 {
+			b.WriteString(strings.Repeat(" ", pad))
+		}
+		b.WriteString(uiansi.Reset)
 		b.WriteString(" ")
 		b.WriteString(uiansi.Grey)
 		b.WriteString(entry.subject)
@@ -446,12 +453,55 @@ func parseSwitchLogHeader(line string) (fullHash string, shortHash string, age s
 		return "", "", "", "", false
 	}
 	shortHash = strings.TrimSpace(parts[1])
-	age = strings.TrimSpace(parts[2])
+	age = compactRelativeAge(strings.TrimSpace(parts[2]))
 	subject = strings.TrimSpace(parts[3])
 	if shortHash == "" || age == "" || subject == "" {
 		return "", "", "", "", false
 	}
 	return fullHash, shortHash, age, subject, true
+}
+
+func compactRelativeAge(age string) string {
+	age = strings.TrimSpace(age)
+	if age == "" {
+		return age
+	}
+
+	replacements := []struct {
+		from string
+		to   string
+	}{
+		{"about an ", "1 "},
+		{"about a ", "1 "},
+		{"an ", "1 "},
+		{"a ", "1 "},
+		{" seconds ago", " sec ago"},
+		{" second ago", " sec ago"},
+		{" minutes ago", " min ago"},
+		{" minute ago", " min ago"},
+		{" hours ago", " hr ago"},
+		{" hour ago", " hr ago"},
+		{" days ago", " day ago"},
+		{" day ago", " day ago"},
+		{" weeks ago", " wk ago"},
+		{" week ago", " wk ago"},
+		{" months ago", " mo ago"},
+		{" month ago", " mo ago"},
+		{" years ago", " yr ago"},
+		{" year ago", " yr ago"},
+	}
+
+	for _, replacement := range replacements {
+		age = strings.Replace(age, replacement.from, replacement.to, 1)
+	}
+
+	if textwidth.Width(age) > switchLogAgeWidth && strings.HasSuffix(age, " ago") {
+		age = strings.TrimSuffix(age, " ago")
+	}
+	if textwidth.Width(age) > switchLogAgeWidth {
+		age = textwidth.Truncate(age, switchLogAgeWidth)
+	}
+	return age
 }
 
 func parseSwitchNumstatLine(line string) (added int, deleted int, ok bool) {

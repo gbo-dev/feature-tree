@@ -44,7 +44,6 @@ const (
 	colTitlePath     = "PATH"
 	colTitleState    = "STATE"
 	colTitleRelation = "RELATION"
-	colTitleHead     = "HEAD"
 	colTitleCommit   = "COMMIT"
 )
 
@@ -310,7 +309,7 @@ func PickSwitchBranch(commandCtx context.Context, entries []gitx.Worktree, curre
 		{colTitleBranch, 0},
 		{colTitleState, l.stateWidth},
 		{colTitleRelation, l.relationWidth},
-		{colTitleHead, l.commitWidth},
+		{colTitleCommit, l.commitWidth},
 	})
 	extraArgs := []string{
 		"--header=" + header,
@@ -458,7 +457,7 @@ func PickRemoveBranch(commandCtx context.Context, entries []gitx.Worktree, curre
 		{colTitlePath, l.pathWidth},
 		{colTitleState, l.stateWidth},
 		{colTitleRelation, l.relationWidth},
-		{colTitleHead, l.commitWidth},
+		{colTitleCommit, l.commitWidth},
 	})
 	return pickBranch(lines, promptLabel("remove", ansiPromptRemove),
 		"--header="+header,
@@ -698,7 +697,7 @@ func PrintWorktreeList(commandCtx context.Context, entries []gitx.Worktree, curr
 		{colTitlePath, l.pathWidth},
 		{colTitleState, l.stateWidth},
 		{colTitleRelation, l.relationWidth},
-		{colTitleHead, l.commitWidth},
+		{colTitleCommit, l.commitWidth},
 	})
 	fmt.Fprintln(w, header)
 
