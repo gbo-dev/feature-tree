@@ -79,8 +79,11 @@ func TestPickerPreviewTabCommandReadsCurrentTabFile(t *testing.T) {
 	if strings.TrimSpace(stderr) != "" {
 		t.Fatalf("__picker-preview-tab stderr = %q, want empty", stderr)
 	}
-	if !strings.Contains(stdout, "vs. default branch") {
+	if !strings.Contains(stdout, "vs. default") {
 		t.Fatalf("__picker-preview-tab stdout missing tab header labels: %q", stdout)
+	}
+	if !strings.Contains(stdout, "[tab/s-tab]") {
+		t.Fatalf("__picker-preview-tab stdout missing key hint: %q", stdout)
 	}
 	if !strings.Contains(stdout, "\x1b[48;2;26;46;44m") {
 		t.Fatalf("__picker-preview-tab stdout missing active-tab background color: %q", stdout)

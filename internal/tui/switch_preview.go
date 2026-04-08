@@ -10,12 +10,12 @@ import (
 	"sync"
 
 	"github.com/gbo-dev/feature-tree/internal/gitx"
+	"github.com/gbo-dev/feature-tree/internal/uiansi"
 )
 
 const (
 	maxSwitchPreviewWorkers = 6
 	switchLogLimit          = 30
-	ansiDiffRed             = "\x1b[38;5;203m"
 )
 
 type switchPreviewTabPaths struct {
@@ -146,33 +146,43 @@ func writeSwitchPreviewFile(tmpDir string, fileName string, content string) (str
 func renderSwitchHeadTab(row pickerRow) string {
 	var b strings.Builder
 	b.WriteString("\n")
-	b.WriteString("Path:   ")
-	b.WriteString(row.path)
-	b.WriteString("\n")
-	b.WriteString("State:  ")
-	b.WriteString(row.state)
-	b.WriteString("\n")
-	b.WriteString("Main:   ")
-	b.WriteString(row.relation)
-	b.WriteString("\n")
-	if strings.TrimSpace(row.commit.Hash) != "" && strings.TrimSpace(row.commit.Subject) != "" {
-		b.WriteString("HEAD:   ")
-		b.WriteString(row.commit.Hash)
-		b.WriteString(" ")
-		b.WriteString(row.commit.Subject)
-		b.WriteString("\n")
+	writeSwitchHeadField(&b, "PATH", row.path, uiansi.Grey)
+	stateColor := ""
+	if row.state != "clean" {
+		stateColor = uiansi.Yellow
 	}
-	b.WriteString("\n")
-	if row.state == "clean" {
-		b.WriteString(row.branch)
-		b.WriteString(" has no uncommitted changes.\n")
-	} else {
-		b.WriteString(row.branch)
-		b.WriteString(" has uncommitted changes (")
-		b.WriteString(row.state)
-		b.WriteString(").\n")
+	writeSwitchHeadField(&b, "STATE", row.state, stateColor)
+	writeSwitchHeadField(&b, "VS. MAIN", row.relation, uiansi.Grey)
+	if strings.TrimSpace(row.commit.Hash) != "" && strings.TrimSpace(row.commit.Subject) != "" {
+		writeSwitchHeadCommitField(&b, row.commit.Hash, row.commit.Subject)
 	}
 	return strings.TrimRight(b.String(), "\n")
+}
+
+func writeSwitchHeadField(b *strings.Builder, label string, value string, valueColor string) {
+	b.WriteString(uiansi.InfoPurple)
+	b.WriteString(fmt.Sprintf("%-11s", label+":"))
+	b.WriteString(uiansi.Reset)
+	if valueColor != "" {
+		b.WriteString(valueColor)
+	}
+	b.WriteString(value)
+	if valueColor != "" {
+		b.WriteString(uiansi.Reset)
+	}
+	b.WriteString("\n")
+}
+
+func writeSwitchHeadCommitField(b *strings.Builder, hash string, subject string) {
+	b.WriteString(uiansi.InfoPurple)
+	b.WriteString(fmt.Sprintf("%-11s", "HEAD:"))
+	b.WriteString(uiansi.Reset)
+	b.WriteString(hash)
+	b.WriteString(" ")
+	b.WriteString(uiansi.Grey)
+	b.WriteString(subject)
+	b.WriteString(uiansi.Reset)
+	b.WriteString("\n")
 }
 
 func renderSwitchLogTab(commandCtx context.Context, repoCtx *gitx.RepoContext, branch string) string {
@@ -210,22 +220,24 @@ func renderSwitchLogTab(commandCtx context.Context, repoCtx *gitx.RepoContext, b
 
 func renderSwitchLogTable(entries []switchLogEntry) string {
 	var b strings.Builder
-	b.WriteString(ansiGrey + "HASH     DIFF         AGE          MESSAGE" + ansiReset + "\n")
+	b.WriteString(uiansi.Grey + "HASH     DIFF         AGE          MESSAGE" + uiansi.Reset + "\n")
 	for _, entry := range entries {
 		hash := fmt.Sprintf("%-7s", entry.shortHash)
 		diff := fmt.Sprintf("+%d -%d", entry.added, entry.deleted)
-		b.WriteString(ansiGrey + hash + ansiReset)
+		b.WriteString(uiansi.Grey + hash + uiansi.Reset)
 		b.WriteString("  ")
-		b.WriteString(ansiGreen + "+" + strconv.Itoa(entry.added) + ansiReset)
+		b.WriteString(uiansi.Green + "+" + strconv.Itoa(entry.added) + uiansi.Reset)
 		b.WriteString(" ")
-		b.WriteString(ansiDiffRed + "-" + strconv.Itoa(entry.deleted) + ansiReset)
+		b.WriteString(uiansi.DiffRed + "-" + strconv.Itoa(entry.deleted) + uiansi.Reset)
 		if pad := 11 - len(diff); pad > 0 {
 			b.WriteString(strings.Repeat(" ", pad))
 		}
 		b.WriteString("  ")
-		b.WriteString(ansiGrey + fmt.Sprintf("%-12s", entry.age) + ansiReset)
+		b.WriteString(uiansi.Grey + fmt.Sprintf("%-12s", entry.age) + uiansi.Reset)
 		b.WriteString(" ")
+		b.WriteString(uiansi.Grey)
 		b.WriteString(entry.subject)
+		b.WriteString(uiansi.Reset)
 		b.WriteString("\n")
 	}
 	return b.String()
@@ -236,29 +248,27 @@ func renderSwitchDefaultDiffTab(commandCtx context.Context, repoCtx *gitx.RepoCo
 	if strings.TrimSpace(defaultBranch) == "" {
 		defaultBranch = "main"
 	}
-	return renderSwitchDiffTab(commandCtx, repoCtx, branch, defaultBranch, "default branch")
+	return renderSwitchDiffTab(commandCtx, repoCtx, branch, defaultBranch)
 }
 
 func renderSwitchUpstreamDiffTab(commandCtx context.Context, repoCtx *gitx.RepoContext, branch string) string {
 	upstream, err := branchUpstream(commandCtx, repoCtx, branch)
 	if err != nil {
-		return "Diff vs upstream\n----------------\nPreview unavailable: " + err.Error()
+		return renderSwitchDiffTabMessage("upstream", branch, "Preview unavailable: "+err.Error())
 	}
 	if strings.TrimSpace(upstream) == "" {
-		return "Diff vs upstream\n----------------\nBranch has no upstream tracking branch."
+		return renderSwitchDiffTabMessage("upstream", branch, "Branch has no upstream tracking branch.")
 	}
-	return renderSwitchDiffTab(commandCtx, repoCtx, branch, upstream, "upstream")
+	return renderSwitchDiffTab(commandCtx, repoCtx, branch, upstream)
 }
 
-func renderSwitchDiffTab(commandCtx context.Context, repoCtx *gitx.RepoContext, branch string, againstRef string, refLabel string) string {
+func renderSwitchDiffTab(commandCtx context.Context, repoCtx *gitx.RepoContext, branch string, againstRef string) string {
 	var b strings.Builder
 	b.WriteString("\n")
-	b.WriteString("Branch: ")
-	b.WriteString(branch)
-	b.WriteString("\n")
-	b.WriteString("Compare: ")
 	b.WriteString(againstRef)
-	b.WriteString("...")
+	b.WriteString(uiansi.Grey)
+	b.WriteString(" vs. ")
+	b.WriteString(uiansi.Reset)
 	b.WriteString(branch)
 	b.WriteString("\n\n")
 
@@ -280,17 +290,24 @@ func renderSwitchDiffTab(commandCtx context.Context, repoCtx *gitx.RepoContext, 
 	}
 
 	if strings.TrimSpace(stdout) == "" {
-		b.WriteString("No diff between ")
-		b.WriteString(branch)
-		b.WriteString(" and ")
-		b.WriteString(refLabel)
-		b.WriteString(" (")
-		b.WriteString(againstRef)
-		b.WriteString(").\n")
+		b.WriteString("No differences.\n")
 		return strings.TrimRight(b.String(), "\n")
 	}
 
 	b.WriteString(colorizeDiffStat(stdout))
+	return strings.TrimRight(b.String(), "\n")
+}
+
+func renderSwitchDiffTabMessage(againstLabel string, branch string, message string) string {
+	var b strings.Builder
+	b.WriteString("\n")
+	b.WriteString(againstLabel)
+	b.WriteString(uiansi.Grey)
+	b.WriteString(" vs. ")
+	b.WriteString(uiansi.Reset)
+	b.WriteString(branch)
+	b.WriteString("\n\n")
+	b.WriteString(message)
 	return strings.TrimRight(b.String(), "\n")
 }
 
@@ -324,10 +341,10 @@ func colorizeDiffStatLine(line string) string {
 
 	changed := rightFields[0]
 	graph := strings.Join(rightFields[1:], " ")
-	graphColored := strings.ReplaceAll(graph, "+", ansiGreen+"+"+ansiReset)
-	graphColored = strings.ReplaceAll(graphColored, "-", ansiDiffRed+"-"+ansiReset)
+	graphColored := strings.ReplaceAll(graph, "+", uiansi.Green+"+"+uiansi.Reset)
+	graphColored = strings.ReplaceAll(graphColored, "-", uiansi.DiffRed+"-"+uiansi.Reset)
 
-	return fmt.Sprintf("%s%-56s%s | %2s %s", ansiGrey, left, ansiReset, changed, graphColored)
+	return fmt.Sprintf("%s%-56s%s | %2s %s", uiansi.Grey, left, uiansi.Reset, changed, graphColored)
 }
 
 func colorizeSummaryLine(line string) string {
@@ -337,16 +354,16 @@ func colorizeSummaryLine(line string) string {
 		if strings.Contains(segment, "insertion") {
 			segment = strings.ReplaceAll(segment, "(", "")
 			segment = strings.ReplaceAll(segment, ")", "")
-			fields[i] = ansiGreen + segment + ansiReset
+			fields[i] = uiansi.Green + segment + uiansi.Reset
 			continue
 		}
 		if strings.Contains(segment, "deletion") {
 			segment = strings.ReplaceAll(segment, "(", "")
 			segment = strings.ReplaceAll(segment, ")", "")
-			fields[i] = ansiDiffRed + segment + ansiReset
+			fields[i] = uiansi.DiffRed + segment + uiansi.Reset
 			continue
 		}
-		fields[i] = ansiGrey + segment + ansiReset
+		fields[i] = uiansi.Grey + segment + uiansi.Reset
 	}
 	return strings.Join(fields, ", ")
 }
