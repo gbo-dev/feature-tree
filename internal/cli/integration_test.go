@@ -41,6 +41,41 @@ func TestInitCommandNoArgsEmitsNoStderr(t *testing.T) {
 	}
 }
 
+func TestRootCommandWithoutArgsShowsOverviewNotFullNotes(t *testing.T) {
+	stdout, stderr, err := runRootCommand(t, "")
+	if err != nil {
+		t.Fatalf("ft returned error: %v", err)
+	}
+	if strings.TrimSpace(stderr) != "" {
+		t.Fatalf("ft stderr = %q, want empty", stderr)
+	}
+	if !strings.Contains(stdout, "Available Commands:") {
+		t.Fatalf("ft stdout should include command list header, got: %q", stdout)
+	}
+	if !strings.Contains(stdout, "switch") {
+		t.Fatalf("ft stdout should include available commands, got: %q", stdout)
+	}
+	if strings.Contains(stdout, "Notes:") {
+		t.Fatalf("ft stdout should not include full notes, got: %q", stdout)
+	}
+}
+
+func TestRootHelpIncludesColoredNotes(t *testing.T) {
+	stdout, stderr, err := runRootCommand(t, "", "--help")
+	if err != nil {
+		t.Fatalf("ft --help returned error: %v", err)
+	}
+	if strings.TrimSpace(stderr) != "" {
+		t.Fatalf("ft --help stderr = %q, want empty", stderr)
+	}
+	if !strings.Contains(stdout, "Notes:") {
+		t.Fatalf("ft --help stdout missing notes, got: %q", stdout)
+	}
+	if !strings.Contains(stdout, "\x1b[") {
+		t.Fatalf("ft --help stdout should include ANSI styling, got: %q", stdout)
+	}
+}
+
 func TestCommandFlowCreateSwitchRemove(t *testing.T) {
 	repoRoot, mainWorktreePath := setupCLIRepo(t)
 	t.Setenv(shell.EmitCDEnv, shell.EmitCDValue)

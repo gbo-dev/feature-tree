@@ -61,3 +61,22 @@ func TestColorizeDiffStatLineKeepsAlignment(t *testing.T) {
 		t.Fatalf("expected minus sign coloring, got: %q", out)
 	}
 }
+
+func TestCompactRelativeAge(t *testing.T) {
+	tests := []struct {
+		in   string
+		want string
+	}{
+		{in: "5 minutes ago", want: "5 min ago"},
+		{in: "about an hour ago", want: "1 hr ago"},
+		{in: "2 hours ago", want: "2 hr ago"},
+		{in: "1 second ago", want: "1 sec ago"},
+		{in: "3 days ago", want: "3 day ago"},
+	}
+
+	for _, tc := range tests {
+		if got := compactRelativeAge(tc.in); got != tc.want {
+			t.Fatalf("compactRelativeAge(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
