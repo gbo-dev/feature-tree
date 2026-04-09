@@ -136,6 +136,10 @@ func TestFetchAndCheckoutPRCreatesWorktree(t *testing.T) {
 
 	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "update-ref", "refs/pull/99/head", featureBranch)
 	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "worktree", "remove", "--force", featureBranchPath)
+	worktreeList := testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "worktree", "list", "--porcelain")
+	if strings.Contains(worktreeList, featureBranchPath) {
+		t.Fatalf("test setup failed: feature branch worktree still present at %q", featureBranchPath)
+	}
 
 	svc := &Service{
 		Ctx: &gitx.RepoContext{

@@ -171,7 +171,7 @@ func (s *Service) findBranchNameBySHA(refNamespace string, headSHA string, strip
 		if stripOriginPrefix && strings.HasPrefix(branch, "origin/") {
 			branch = strings.TrimPrefix(branch, "origin/")
 		}
-		if branch == "" || branch == s.Ctx.DefaultBranch || strings.HasPrefix(branch, "pull/") {
+		if branch == s.Ctx.DefaultBranch || strings.HasPrefix(branch, "pull/") {
 			continue
 		}
 		return branch
