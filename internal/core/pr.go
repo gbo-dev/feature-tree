@@ -60,13 +60,12 @@ func (s *Service) GetPRInfo(prNumber int) (*PRInfo, error) {
 		fmt.Sprintf("refs/pull/%d/merge", prNumber),
 	}
 
-	var headRef string
+	headRef := fmt.Sprintf("pull/%d", prNumber)
 	var headSHA string
 
 	for _, ref := range refsToTry {
 		stdout, _, exitCode, runErr := gitx.RunGitCommon(s.CommandCtx, s.Ctx, "rev-parse", "--verify", ref)
 		if runErr == nil && exitCode == 0 {
-			headRef = fmt.Sprintf("pull/%d", prNumber)
 			headSHA = strings.TrimSpace(stdout)
 			break
 		}
@@ -78,13 +77,14 @@ func (s *Service) GetPRInfo(prNumber int) (*PRInfo, error) {
 			return nil, fmt.Errorf("ft: failed to fetch PR #%d: %w", prNumber, err)
 		}
 
-		headRef = fmt.Sprintf("pull/%d", prNumber)
 		stdout, stderr, exitCode, runErr := gitx.RunGitCommon(s.CommandCtx, s.Ctx, "rev-parse", "--verify", fmt.Sprintf("refs/pull/%d/head", prNumber))
 		if err := gitx.CommandError("resolve PR commit", stderr, exitCode, runErr, "git rev-parse failed"); err != nil {
 			return nil, fmt.Errorf("ft: failed to resolve PR #%d commit: %w", prNumber, err)
 		}
 		headSHA = strings.TrimSpace(stdout)
 	}
+
+	headRef = s.resolvePRBranchName(prNumber, headSHA)
 
 	stdout, _, _, runErr := gitx.RunGitCommon(s.CommandCtx, s.Ctx, "log", "--oneline", "-1", headSHA)
 	title := strings.TrimSpace(stdout)
@@ -137,6 +137,47 @@ func (s *Service) ensureLocalRefUpdated(prInfo *PRInfo) error {
 	}
 
 	return nil
+}
+
+func (s *Service) resolvePRBranchName(prNumber int, headSHA string) string {
+	if branch := s.findBranchNameBySHA("refs/heads", headSHA, false); branch != "" {
+		return branch
+	}
+	if branch := s.findBranchNameBySHA("refs/remotes/origin", headSHA, true); branch != "" {
+		return branch
+	}
+	return fmt.Sprintf("pull/%d", prNumber)
+}
+
+func (s *Service) findBranchNameBySHA(refNamespace string, headSHA string, stripOriginPrefix bool) string {
+	stdout, _, exitCode, runErr := gitx.RunGitCommon(
+		s.CommandCtx,
+		s.Ctx,
+		"for-each-ref",
+		"--format=%(refname:short)",
+		"--points-at",
+		headSHA,
+		refNamespace,
+	)
+	if runErr != nil || exitCode != 0 {
+		return ""
+	}
+
+	for _, line := range strings.Split(stdout, "\n") {
+		branch := strings.TrimSpace(line)
+		if branch == "" || branch == "origin" || branch == "origin/HEAD" {
+			continue
+		}
+		if stripOriginPrefix && strings.HasPrefix(branch, "origin/") {
+			branch = strings.TrimPrefix(branch, "origin/")
+		}
+		if branch == "" || branch == s.Ctx.DefaultBranch || strings.HasPrefix(branch, "pull/") {
+			continue
+		}
+		return branch
+	}
+
+	return ""
 }
 
 func ParsePRNumber(input string) (int, error) {

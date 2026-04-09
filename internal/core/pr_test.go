@@ -98,8 +98,8 @@ func TestGetPRInfoFetchesFromOrigin(t *testing.T) {
 	if prInfo.Number != 42 {
 		t.Fatalf("GetPRInfo Number = %d, want 42", prInfo.Number)
 	}
-	if prInfo.HeadRef != "pull/42" {
-		t.Fatalf("GetPRInfo HeadRef = %q, want %q", prInfo.HeadRef, "pull/42")
+	if prInfo.HeadRef != featureBranch {
+		t.Fatalf("GetPRInfo HeadRef = %q, want %q", prInfo.HeadRef, featureBranch)
 	}
 	if prInfo.BaseBranch != cloneResult.DefaultBranch {
 		t.Fatalf("GetPRInfo BaseBranch = %q, want %q", prInfo.BaseBranch, cloneResult.DefaultBranch)
@@ -135,6 +135,7 @@ func TestFetchAndCheckoutPRCreatesWorktree(t *testing.T) {
 	testutil.RunGit(t, featureBranchPath, "commit", "-m", "PR test commit")
 
 	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "update-ref", "refs/pull/99/head", featureBranch)
+	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "worktree", "remove", "--force", featureBranchPath)
 
 	svc := &Service{
 		Ctx: &gitx.RepoContext{
@@ -153,14 +154,14 @@ func TestFetchAndCheckoutPRCreatesWorktree(t *testing.T) {
 	if result.Number != 99 {
 		t.Fatalf("FetchAndCheckoutPR Number = %d, want 99", result.Number)
 	}
-	if result.Branch != "pull/99" {
-		t.Fatalf("FetchAndCheckoutPR Branch = %q, want %q", result.Branch, "pull/99")
+	if result.Branch != featureBranch {
+		t.Fatalf("FetchAndCheckoutPR Branch = %q, want %q", result.Branch, featureBranch)
 	}
 	if !result.Created {
 		t.Fatalf("FetchAndCheckoutPR Created = false, want true")
 	}
 
-	expectedPath := filepath.Join(cloneResult.RepoRoot, "pull-99")
+	expectedPath := filepath.Join(cloneResult.RepoRoot, featureBranch)
 	if result.Path != expectedPath {
 		t.Fatalf("FetchAndCheckoutPR Path = %q, want %q", result.Path, expectedPath)
 	}
