@@ -184,10 +184,10 @@ func (s *Service) findBranchNameBySHA(refNamespace string, headSHA string, strip
 		if branch == "" || branch == "origin/HEAD" {
 			continue
 		}
+		if stripOriginPrefix && (branch == "origin" || !strings.HasPrefix(branch, "origin/")) {
+			continue
+		}
 		if stripOriginPrefix {
-			if !strings.HasPrefix(branch, "origin/") {
-				continue
-			}
 			branch = strings.TrimPrefix(branch, "origin/")
 		}
 		if branch == s.Ctx.DefaultBranch || strings.HasPrefix(branch, "pull/") {
