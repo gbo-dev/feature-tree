@@ -11,6 +11,8 @@ import (
 )
 
 func newPRCmd() *cobra.Command {
+	var usePRRef bool
+
 	cmd := &cobra.Command{
 		Use:   "pr <num>",
 		Short: "Fetch and checkout a PR into a new worktree",
@@ -22,7 +24,8 @@ This command:
 3. Creates a new worktree for the PR branch
 4. Switches to the new worktree
 
-The PR branch name will be in the format "pull/<num>".
+	By default, ft tries to use the PR head branch name for the local branch/worktree.
+	Use --use-pr-ref to always use "pull/<num>" instead.
 
 Examples:
   ft pr 123         # Checkout PR #123 into a new worktree
@@ -48,7 +51,9 @@ Examples:
 				return err
 			}
 
-			result, err := svc.FetchAndCheckoutPR(prNum)
+			result, err := svc.FetchAndCheckoutPRWithOptions(prNum, core.PRCheckoutOptions{
+				UsePRRef: usePRRef,
+			})
 			if err != nil {
 				return err
 			}
@@ -69,6 +74,7 @@ Examples:
 	cmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
+	cmd.Flags().BoolVar(&usePRRef, "use-pr-ref", false, `Use "pull/<num>" for the local branch/worktree name`)
 
 	return cmd
 }

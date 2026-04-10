@@ -171,6 +171,59 @@ func TestFetchAndCheckoutPRCreatesWorktree(t *testing.T) {
 	}
 }
 
+func TestFetchAndCheckoutPRWithOptionsUsesPRRef(t *testing.T) {
+	base := t.TempDir()
+	source := filepath.Join(base, "source")
+	testutil.InitRepoWithMain(t, source)
+
+	remote := filepath.Join(base, "origin.git")
+	testutil.RunGit(t, "", "clone", "--bare", source, remote)
+
+	target := filepath.Join(base, "repo")
+	cloneResult, err := gitx.CloneRepo(context.Background(), remote, target)
+	if err != nil {
+		t.Fatalf("CloneRepo failed: %v", err)
+	}
+
+	featureBranch := "feature-pr-option"
+	featureBranchPath := filepath.Join(cloneResult.RepoRoot, featureBranch)
+	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "worktree", "add", "-b", featureBranch, featureBranchPath, cloneResult.DefaultBranch)
+	testutil.RunGit(t, featureBranchPath, "config", "user.name", "Test User")
+	testutil.RunGit(t, featureBranchPath, "config", "user.email", "test@example.com")
+
+	prFile := filepath.Join(featureBranchPath, "pr-option-file.txt")
+	if err := os.WriteFile(prFile, []byte("PR option content\n"), 0o644); err != nil {
+		t.Fatalf("write pr option file: %v", err)
+	}
+	testutil.RunGit(t, featureBranchPath, "add", "pr-option-file.txt")
+	testutil.RunGit(t, featureBranchPath, "commit", "-m", "PR option commit")
+
+	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "update-ref", "refs/pull/101/head", featureBranch)
+	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "worktree", "remove", "--force", featureBranchPath)
+
+	svc := &Service{
+		Ctx: &gitx.RepoContext{
+			RepoRoot:      cloneResult.RepoRoot,
+			GitCommonDir:  cloneResult.GitCommonDir,
+			DefaultBranch: cloneResult.DefaultBranch,
+			IncludeFile:   ".worktreeinclude",
+		},
+		CommandCtx: context.Background(),
+	}
+
+	result, err := svc.FetchAndCheckoutPRWithOptions(101, PRCheckoutOptions{UsePRRef: true})
+	if err != nil {
+		t.Fatalf("FetchAndCheckoutPRWithOptions returned error: %v", err)
+	}
+	if result.Branch != "pull/101" {
+		t.Fatalf("FetchAndCheckoutPRWithOptions Branch = %q, want %q", result.Branch, "pull/101")
+	}
+	expectedPath := filepath.Join(cloneResult.RepoRoot, "pull-101")
+	if result.Path != expectedPath {
+		t.Fatalf("FetchAndCheckoutPRWithOptions Path = %q, want %q", result.Path, expectedPath)
+	}
+}
+
 func TestFetchAndCheckoutPRReusesExistingWorktree(t *testing.T) {
 	base := t.TempDir()
 	source := filepath.Join(base, "source")

@@ -18,7 +18,15 @@ type PRInfo struct {
 }
 
 func (s *Service) FetchAndCheckoutPR(prNumber int) (*PRResult, error) {
-	prInfo, err := s.GetPRInfo(prNumber)
+	return s.FetchAndCheckoutPRWithOptions(prNumber, PRCheckoutOptions{})
+}
+
+type PRCheckoutOptions struct {
+	UsePRRef bool
+}
+
+func (s *Service) FetchAndCheckoutPRWithOptions(prNumber int, options PRCheckoutOptions) (*PRResult, error) {
+	prInfo, err := s.getPRInfo(prNumber, options.UsePRRef)
 	if err != nil {
 		return nil, err
 	}
@@ -55,6 +63,10 @@ func (s *Service) FetchAndCheckoutPR(prNumber int) (*PRResult, error) {
 }
 
 func (s *Service) GetPRInfo(prNumber int) (*PRInfo, error) {
+	return s.getPRInfo(prNumber, false)
+}
+
+func (s *Service) getPRInfo(prNumber int, usePRRef bool) (*PRInfo, error) {
 	refsToTry := []string{
 		fmt.Sprintf("refs/pull/%d/head", prNumber),
 		fmt.Sprintf("refs/pull/%d/merge", prNumber),
@@ -84,7 +96,11 @@ func (s *Service) GetPRInfo(prNumber int) (*PRInfo, error) {
 		headSHA = strings.TrimSpace(stdout)
 	}
 
-	headRef = s.resolvePRBranchName(prNumber, headSHA)
+	if usePRRef {
+		headRef = fmt.Sprintf("pull/%d", prNumber)
+	} else {
+		headRef = s.resolvePRBranchName(prNumber, headSHA)
+	}
 
 	stdout, _, _, runErr := gitx.RunGitCommon(s.CommandCtx, s.Ctx, "log", "--oneline", "-1", headSHA)
 	title := strings.TrimSpace(stdout)
@@ -165,10 +181,13 @@ func (s *Service) findBranchNameBySHA(refNamespace string, headSHA string, strip
 
 	for _, line := range strings.Split(stdout, "\n") {
 		branch := strings.TrimSpace(line)
-		if branch == "" || branch == "origin" || branch == "origin/HEAD" {
+		if branch == "" || branch == "origin/HEAD" {
 			continue
 		}
-		if stripOriginPrefix && strings.HasPrefix(branch, "origin/") {
+		if stripOriginPrefix {
+			if !strings.HasPrefix(branch, "origin/") {
+				continue
+			}
 			branch = strings.TrimPrefix(branch, "origin/")
 		}
 		if branch == s.Ctx.DefaultBranch || strings.HasPrefix(branch, "pull/") {
