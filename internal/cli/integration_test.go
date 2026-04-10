@@ -430,6 +430,31 @@ func TestPRCommandUsesPRBranchNameWhenAvailable(t *testing.T) {
 	}
 }
 
+func TestPRCommandUsePRRefFlagUsesPullRefName(t *testing.T) {
+	repoRoot, mainWorktreePath := setupCLIRepo(t)
+	t.Setenv(shell.EmitCDEnv, shell.EmitCDValue)
+
+	featureBranch := "feature-pr-flag"
+	featureBranchPath := filepath.Join(repoRoot, featureBranch)
+	testutil.RunGit(t, "", "--git-dir", filepath.Join(repoRoot, ".git"), "worktree", "add", "-b", featureBranch, featureBranchPath, "main")
+	testutil.RunGit(t, "", "--git-dir", filepath.Join(repoRoot, ".git"), "update-ref", "refs/pull/654/head", featureBranch)
+	testutil.RunGit(t, "", "--git-dir", filepath.Join(repoRoot, ".git"), "worktree", "remove", "--force", featureBranchPath)
+
+	stdout, stderr, err := runRootCommand(t, mainWorktreePath, "pr", "654", "--use-pr-ref")
+	if err != nil {
+		t.Fatalf("ft pr --use-pr-ref returned error: %v", err)
+	}
+	if !strings.Contains(stdout, "Created worktree: pull/654 ->") {
+		t.Fatalf("ft pr --use-pr-ref output missing created message with pull ref name, got: %q", stdout)
+	}
+	if !strings.Contains(stdout, "Switched to pull/654") {
+		t.Fatalf("ft pr --use-pr-ref output missing switched message with pull ref name, got: %q", stdout)
+	}
+	if strings.TrimSpace(stderr) != "" {
+		t.Fatalf("ft pr --use-pr-ref stderr = %q, want empty", stderr)
+	}
+}
+
 func TestPRCommandReusesExistingWorktree(t *testing.T) {
 	repoRoot, mainWorktreePath := setupCLIRepo(t)
 	t.Setenv(shell.EmitCDEnv, shell.EmitCDValue)
