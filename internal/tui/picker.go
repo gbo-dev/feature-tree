@@ -335,29 +335,45 @@ func PickSwitchBranch(commandCtx context.Context, entries []gitx.Worktree, curre
 func PickCreateBranch(commandCtx context.Context, entries []gitx.Worktree, currentBranch string, ctx *gitx.RepoContext, includeAllBranches bool) (string, error) {
 	branches := make([]string, 0, len(entries))
 	worktreeByBranch := make(map[string]gitx.Worktree, len(entries))
+	commitByBranch := make(map[string]gitx.CommitInfo, len(entries))
+	relationByBranch := make(map[string]string, len(entries))
 	for _, worktree := range entries {
 		branches = append(branches, worktree.Branch)
 		worktreeByBranch[worktree.Branch] = worktree
 	}
 
 	if includeAllBranches {
-		localBranches, err := gitx.ListLocalBranches(commandCtx, ctx)
+		snapshots, err := gitx.ListLocalBranchSnapshots(commandCtx, ctx)
 		if err != nil {
 			return "", err
 		}
-		for _, branch := range localBranches {
-			if _, ok := worktreeByBranch[branch]; ok {
+		for _, snapshot := range snapshots {
+			commitByBranch[snapshot.Branch] = snapshot.Commit
+			relationByBranch[snapshot.Branch] = snapshot.Relation
+			if _, ok := worktreeByBranch[snapshot.Branch]; ok {
 				continue
 			}
-			branches = append(branches, branch)
+			branches = append(branches, snapshot.Branch)
 		}
 	}
 
-	commits := gitx.FetchCommitsParallel(commandCtx, ctx, branches)
+	if len(commitByBranch) == 0 {
+		commits := gitx.FetchCommitsParallel(commandCtx, ctx, branches)
+		for i, branch := range branches {
+			commitByBranch[branch] = commits[i]
+		}
+	}
+	if len(relationByBranch) == 0 {
+		relations := gitx.FetchBranchRelationsParallel(commandCtx, ctx, branches)
+		for i, branch := range branches {
+			relationByBranch[branch] = relations[i]
+		}
+	}
+
 	fromPath := currentWorktreePath(entries, currentBranch)
 
 	rows := make([]pickerRow, 0, len(branches))
-	for i, branch := range branches {
+	for _, branch := range branches {
 		worktree, hasWorktree := worktreeByBranch[branch]
 		path := "(no worktree)"
 		state := "-"
@@ -369,8 +385,8 @@ func PickCreateBranch(commandCtx context.Context, entries []gitx.Worktree, curre
 			}
 			state = gitx.DirtyState(dirty)
 		}
-		relation, err := gitx.BranchRelation(commandCtx, ctx, branch)
-		if err != nil {
+		relation := strings.TrimSpace(relationByBranch[branch])
+		if relation == "" {
 			relation = "?"
 		}
 		m := ""
@@ -379,7 +395,7 @@ func PickCreateBranch(commandCtx context.Context, entries []gitx.Worktree, curre
 		}
 		rows = append(rows, pickerRow{
 			branch:   branch,
-			commit:   commits[i],
+			commit:   commitByBranch[branch],
 			path:     path,
 			state:    state,
 			relation: relation,

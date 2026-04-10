@@ -6,7 +6,10 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 )
+
+const maxConcurrentBranchRelations = 8
 
 type Worktree struct {
 	Path         string
@@ -176,4 +179,36 @@ func BranchRelation(commandCtx context.Context, ctx *RepoContext, branch string)
 	}
 
 	return fmt.Sprintf("A: %d B: %d", ahead, behind), nil
+}
+
+func FetchBranchRelationsParallel(commandCtx context.Context, ctx *RepoContext, branches []string) []string {
+	results := make([]string, len(branches))
+	if len(branches) == 0 {
+		return results
+	}
+
+	limit := maxConcurrentBranchRelations
+	if len(branches) < limit {
+		limit = len(branches)
+	}
+
+	sem := make(chan struct{}, limit)
+	var wg sync.WaitGroup
+	for i, branch := range branches {
+		sem <- struct{}{}
+		wg.Add(1)
+		go func(idx int, branchName string) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			relation, err := BranchRelation(commandCtx, ctx, branchName)
+			if err != nil || strings.TrimSpace(relation) == "" {
+				results[idx] = "?"
+				return
+			}
+			results[idx] = relation
+		}(i, branch)
+	}
+	wg.Wait()
+	return results
 }
