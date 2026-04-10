@@ -222,6 +222,124 @@ func TestFetchAndCheckoutPRWithOptionsUsesPRRef(t *testing.T) {
 	if result.Path != expectedPath {
 		t.Fatalf("FetchAndCheckoutPRWithOptions Path = %q, want %q", result.Path, expectedPath)
 	}
+
+	prHead := testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "rev-parse", "--verify", "refs/pull/101/head")
+	branchHead := testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "rev-parse", "--verify", "refs/heads/pull/101")
+	if branchHead != prHead {
+		t.Fatalf("pull/101 HEAD = %q, want PR head %q", branchHead, prHead)
+	}
+}
+
+func TestFetchAndCheckoutPRSetsTrackingToRemoteHeadBranch(t *testing.T) {
+	base := t.TempDir()
+	source := filepath.Join(base, "source")
+	testutil.InitRepoWithMain(t, source)
+
+	featureBranch := "feature-pr-upstream"
+	testutil.RunGit(t, source, "checkout", "-b", featureBranch)
+
+	prFile := filepath.Join(source, "tracked-pr-file.txt")
+	if err := os.WriteFile(prFile, []byte("tracked PR content\n"), 0o644); err != nil {
+		t.Fatalf("write tracked PR file: %v", err)
+	}
+	testutil.RunGit(t, source, "add", "tracked-pr-file.txt")
+	testutil.RunGit(t, source, "commit", "-m", "tracked PR commit")
+	testutil.RunGit(t, source, "checkout", "main")
+
+	remote := filepath.Join(base, "origin.git")
+	testutil.RunGit(t, "", "clone", "--bare", source, remote)
+
+	target := filepath.Join(base, "repo")
+	cloneResult, err := gitx.CloneRepo(context.Background(), remote, target)
+	if err != nil {
+		t.Fatalf("CloneRepo failed: %v", err)
+	}
+
+	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "update-ref", "refs/pull/202/head", "refs/remotes/origin/"+featureBranch)
+
+	svc := &Service{
+		Ctx: &gitx.RepoContext{
+			RepoRoot:      cloneResult.RepoRoot,
+			GitCommonDir:  cloneResult.GitCommonDir,
+			DefaultBranch: cloneResult.DefaultBranch,
+			IncludeFile:   ".worktreeinclude",
+		},
+		CommandCtx: context.Background(),
+	}
+
+	result, err := svc.FetchAndCheckoutPR(202)
+	if err != nil {
+		t.Fatalf("FetchAndCheckoutPR returned error: %v", err)
+	}
+	if result.Branch != featureBranch {
+		t.Fatalf("FetchAndCheckoutPR Branch = %q, want %q", result.Branch, featureBranch)
+	}
+
+	trackRemote := testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "config", "--get", "branch."+featureBranch+".remote")
+	if trackRemote != "origin" {
+		t.Fatalf("branch.%s.remote = %q, want %q", featureBranch, trackRemote, "origin")
+	}
+
+	trackMerge := testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "config", "--get", "branch."+featureBranch+".merge")
+	if trackMerge != "refs/heads/"+featureBranch {
+		t.Fatalf("branch.%s.merge = %q, want %q", featureBranch, trackMerge, "refs/heads/"+featureBranch)
+	}
+}
+
+func TestFetchAndCheckoutPRWithOptionsUsePRRefSetsTrackingToRemoteHeadBranch(t *testing.T) {
+	base := t.TempDir()
+	source := filepath.Join(base, "source")
+	testutil.InitRepoWithMain(t, source)
+
+	featureBranch := "feature-pr-upstream-ref"
+	testutil.RunGit(t, source, "checkout", "-b", featureBranch)
+
+	prFile := filepath.Join(source, "tracked-pr-ref-file.txt")
+	if err := os.WriteFile(prFile, []byte("tracked PR ref content\n"), 0o644); err != nil {
+		t.Fatalf("write tracked PR ref file: %v", err)
+	}
+	testutil.RunGit(t, source, "add", "tracked-pr-ref-file.txt")
+	testutil.RunGit(t, source, "commit", "-m", "tracked PR ref commit")
+	testutil.RunGit(t, source, "checkout", "main")
+
+	remote := filepath.Join(base, "origin.git")
+	testutil.RunGit(t, "", "clone", "--bare", source, remote)
+
+	target := filepath.Join(base, "repo")
+	cloneResult, err := gitx.CloneRepo(context.Background(), remote, target)
+	if err != nil {
+		t.Fatalf("CloneRepo failed: %v", err)
+	}
+
+	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "update-ref", "refs/pull/303/head", "refs/remotes/origin/"+featureBranch)
+
+	svc := &Service{
+		Ctx: &gitx.RepoContext{
+			RepoRoot:      cloneResult.RepoRoot,
+			GitCommonDir:  cloneResult.GitCommonDir,
+			DefaultBranch: cloneResult.DefaultBranch,
+			IncludeFile:   ".worktreeinclude",
+		},
+		CommandCtx: context.Background(),
+	}
+
+	result, err := svc.FetchAndCheckoutPRWithOptions(303, PRCheckoutOptions{UsePRRef: true})
+	if err != nil {
+		t.Fatalf("FetchAndCheckoutPRWithOptions returned error: %v", err)
+	}
+	if result.Branch != "pull/303" {
+		t.Fatalf("FetchAndCheckoutPRWithOptions Branch = %q, want %q", result.Branch, "pull/303")
+	}
+
+	trackRemote := testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "config", "--get", "branch.pull/303.remote")
+	if trackRemote != "origin" {
+		t.Fatalf("branch.pull/303.remote = %q, want %q", trackRemote, "origin")
+	}
+
+	trackMerge := testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "config", "--get", "branch.pull/303.merge")
+	if trackMerge != "refs/heads/"+featureBranch {
+		t.Fatalf("branch.pull/303.merge = %q, want %q", trackMerge, "refs/heads/"+featureBranch)
+	}
 }
 
 func TestFetchAndCheckoutPRReusesExistingWorktree(t *testing.T) {

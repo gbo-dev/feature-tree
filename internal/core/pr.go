@@ -11,6 +11,7 @@ import (
 type PRInfo struct {
 	Number     int
 	HeadRef    string
+	HeadRemote string
 	HeadSHA    string
 	BaseBranch string
 	BaseSHA    string
@@ -41,6 +42,10 @@ func (s *Service) FetchAndCheckoutPRWithOptions(prNumber int, options PRCheckout
 	}
 
 	if existingPath := FindWorktreePath(worktrees, prInfo.HeadRef); existingPath != "" {
+		if err := s.ensurePRBranchTracking(prInfo.HeadRef, prInfo.HeadRemote); err != nil {
+			return nil, err
+		}
+
 		return &PRResult{
 			Number:  prInfo.Number,
 			Path:    existingPath,
@@ -49,8 +54,16 @@ func (s *Service) FetchAndCheckoutPRWithOptions(prNumber int, options PRCheckout
 		}, nil
 	}
 
+	if err := s.syncLocalPRBranchToHead(prInfo.HeadRef, prInfo.HeadSHA); err != nil {
+		return nil, err
+	}
+
 	result, err := s.CreateWorktree(prInfo.HeadRef, prInfo.BaseBranch)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := s.ensurePRBranchTracking(prInfo.HeadRef, prInfo.HeadRemote); err != nil {
 		return nil, err
 	}
 
@@ -102,6 +115,8 @@ func (s *Service) getPRInfo(prNumber int, usePRRef bool) (*PRInfo, error) {
 		headRef = s.resolvePRBranchName(prNumber, headSHA)
 	}
 
+	headRemote := s.findBranchNameBySHA("refs/remotes/origin", headSHA, true)
+
 	stdout, _, _, runErr := gitx.RunGitCommon(s.CommandCtx, s.Ctx, "log", "--oneline", "-1", headSHA)
 	title := strings.TrimSpace(stdout)
 	if runErr != nil {
@@ -127,11 +142,52 @@ func (s *Service) getPRInfo(prNumber int, usePRRef bool) (*PRInfo, error) {
 	return &PRInfo{
 		Number:     prNumber,
 		HeadRef:    headRef,
+		HeadRemote: headRemote,
 		HeadSHA:    headSHA,
 		BaseBranch: baseBranch,
 		BaseSHA:    baseSHA,
 		Title:      title,
 	}, nil
+}
+
+func (s *Service) ensurePRBranchTracking(localBranch string, remoteBranch string) error {
+	localBranch = strings.TrimSpace(localBranch)
+	remoteBranch = strings.TrimSpace(remoteBranch)
+
+	if localBranch == "" || remoteBranch == "" {
+		return nil
+	}
+
+	_, stderr, exitCode, runErr := gitx.RunGitCommon(s.CommandCtx, s.Ctx, "show-ref", "--verify", "--quiet", "refs/remotes/origin/"+remoteBranch)
+	if exitCode == 1 && runErr == nil {
+		return nil
+	}
+	if err := gitx.CommandError(fmt.Sprintf("verify remote branch %q", remoteBranch), stderr, exitCode, runErr, "git show-ref failed"); err != nil {
+		return err
+	}
+
+	_, stderr, exitCode, runErr = gitx.RunGitCommon(s.CommandCtx, s.Ctx, "branch", "--set-upstream-to", "origin/"+remoteBranch, localBranch)
+	if err := gitx.CommandError(fmt.Sprintf("set upstream for branch %q", localBranch), stderr, exitCode, runErr, "git branch failed"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *Service) syncLocalPRBranchToHead(localBranch string, headSHA string) error {
+	localBranch = strings.TrimSpace(localBranch)
+	headSHA = strings.TrimSpace(headSHA)
+
+	if localBranch == "" || headSHA == "" {
+		return nil
+	}
+
+	_, stderr, exitCode, runErr := gitx.RunGitCommon(s.CommandCtx, s.Ctx, "update-ref", "refs/heads/"+localBranch, headSHA)
+	if err := gitx.CommandError(fmt.Sprintf("move branch %q to PR head", localBranch), stderr, exitCode, runErr, "git update-ref failed"); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *Service) ensureLocalRefUpdated(prInfo *PRInfo) error {
