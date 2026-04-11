@@ -1,9 +1,23 @@
 package tui
 
 import (
+	"context"
+	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/gbo-dev/feature-tree/internal/uiansi"
 )
+
+func TestLoadSwitchAheadCommitHashesErrorsWhenDefaultBranchUnknown(t *testing.T) {
+	_, err := loadSwitchAheadCommitHashes(context.Background(), nil, "", "feature")
+	if err == nil {
+		t.Fatalf("expected error when default branch is unknown")
+	}
+	if !strings.Contains(err.Error(), "default branch is unknown") {
+		t.Fatalf("error = %q, want message to mention unknown default branch", err.Error())
+	}
+}
 
 func TestParseSwitchLogEntriesParsesNumstatTotals(t *testing.T) {
 	stdout := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\taaaa\t2 hours ago\tadd feature\n3\t1\ta.txt\n2\t0\tb.txt\n"
@@ -39,12 +53,37 @@ func TestLooksLikeFullCommitHash(t *testing.T) {
 }
 
 func TestRenderSwitchLogTabUsesDiffHeader(t *testing.T) {
-	text := renderSwitchLogTable([]switchLogEntry{{shortHash: "aaaa", added: 845, deleted: 11, age: "2h", subject: "test"}})
+	text := renderSwitchLogTable([]switchLogEntry{{shortHash: "aaaa", added: 845, deleted: 11, age: "2h", subject: "test"}}, nil)
 	if !strings.Contains(text, "DIFF") {
 		t.Fatalf("expected DIFF header, got: %q", text)
 	}
 	if !strings.Contains(text, "+845") || !strings.Contains(text, "-11") {
 		t.Fatalf("expected +845 and -11 in table, got: %q", text)
+	}
+}
+
+func TestRenderSwitchLogTableHighlightsAheadCommits(t *testing.T) {
+	aheadHash := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	baseHash := "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	paddedAhead := fmt.Sprintf("%-7s", "aaaa")
+	paddedBase := fmt.Sprintf("%-7s", "bbbb")
+
+	text := renderSwitchLogTable([]switchLogEntry{
+		{fullHash: aheadHash, shortHash: "aaaa", added: 5, deleted: 1, age: "2h", subject: "ahead commit"},
+		{fullHash: baseHash, shortHash: "bbbb", added: 1, deleted: 0, age: "1d", subject: "base commit"},
+	}, map[string]struct{}{aheadHash: {}})
+
+	if strings.Contains(text, uiansi.Grey+paddedAhead+uiansi.Reset) {
+		t.Fatalf("expected ahead hash to use regular text color, got: %q", text)
+	}
+	if strings.Contains(text, uiansi.Grey+"ahead commit"+uiansi.Reset) {
+		t.Fatalf("expected ahead subject to use regular text color, got: %q", text)
+	}
+	if !strings.Contains(text, uiansi.Grey+paddedBase+uiansi.Reset) {
+		t.Fatalf("expected base hash to remain grey, got: %q", text)
+	}
+	if !strings.Contains(text, uiansi.Grey+"base commit"+uiansi.Reset) {
+		t.Fatalf("expected base subject to remain grey, got: %q", text)
 	}
 }
 

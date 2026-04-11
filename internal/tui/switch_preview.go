@@ -196,6 +196,16 @@ func renderSwitchLogTab(commandCtx context.Context, repoCtx *gitx.RepoContext, b
 	var b strings.Builder
 	b.WriteString("\n")
 
+	defaultBranch := strings.TrimSpace(repoCtx.DefaultBranch)
+	aheadHashes := map[string]struct{}{}
+	aheadLoadWarning := ""
+	hashes, err := loadSwitchAheadCommitHashes(commandCtx, repoCtx, defaultBranch, branch)
+	if err != nil {
+		aheadLoadWarning = err.Error()
+	} else {
+		aheadHashes = hashes
+	}
+
 	stdout, stderr, exitCode, runErr := gitx.RunGitCommon(
 		commandCtx,
 		repoCtx,
@@ -219,19 +229,61 @@ func renderSwitchLogTab(commandCtx context.Context, repoCtx *gitx.RepoContext, b
 		b.WriteString("No commits found.\n")
 		return strings.TrimRight(b.String(), "\n")
 	}
+	if aheadLoadWarning != "" {
+		b.WriteString(uiansi.Grey)
+		b.WriteString("Ahead commit highlighting unavailable: ")
+		b.WriteString(aheadLoadWarning)
+		b.WriteString(uiansi.Reset)
+		b.WriteString("\n")
+	}
 
-	b.WriteString(renderSwitchLogTable(entries))
+	b.WriteString(renderSwitchLogTable(entries, aheadHashes))
 
 	return strings.TrimRight(b.String(), "\n")
 }
 
-func renderSwitchLogTable(entries []switchLogEntry) string {
+func loadSwitchAheadCommitHashes(commandCtx context.Context, repoCtx *gitx.RepoContext, defaultBranch string, branch string) (map[string]struct{}, error) {
+	hashes := map[string]struct{}{}
+	if branch == "" || branch == defaultBranch {
+		return hashes, nil
+	}
+	if defaultBranch == "" {
+		return nil, fmt.Errorf("default branch is unknown")
+	}
+
+	stdout, stderr, exitCode, runErr := gitx.RunGitCommon(commandCtx, repoCtx, "rev-list", defaultBranch+".."+branch)
+	if err := gitx.CommandError(fmt.Sprintf("read ahead commits for %q", branch), stderr, exitCode, runErr, "git rev-list failed"); err != nil {
+		return nil, err
+	}
+
+	for _, line := range strings.Split(stdout, "\n") {
+		hash := strings.TrimSpace(line)
+		if looksLikeFullCommitHash(hash) {
+			hashes[hash] = struct{}{}
+		}
+	}
+
+	return hashes, nil
+}
+
+func renderSwitchLogTable(entries []switchLogEntry, aheadHashes map[string]struct{}) string {
 	var b strings.Builder
 	b.WriteString(uiansi.Grey + "HASH     DIFF         AGE          MESSAGE" + uiansi.Reset + "\n")
 	for _, entry := range entries {
+		entryColor := uiansi.Grey
+		if _, ok := aheadHashes[entry.fullHash]; ok {
+			entryColor = ""
+		}
+
 		hash := fmt.Sprintf("%-7s", entry.shortHash)
 		diff := fmt.Sprintf("+%d -%d", entry.added, entry.deleted)
-		b.WriteString(uiansi.Grey + hash + uiansi.Reset)
+		if entryColor != "" {
+			b.WriteString(entryColor)
+		}
+		b.WriteString(hash)
+		if entryColor != "" {
+			b.WriteString(uiansi.Reset)
+		}
 		b.WriteString("  ")
 		b.WriteString(uiansi.Green + "+" + strconv.Itoa(entry.added) + uiansi.Reset)
 		b.WriteString(" ")
@@ -240,16 +292,24 @@ func renderSwitchLogTable(entries []switchLogEntry) string {
 			b.WriteString(strings.Repeat(" ", pad))
 		}
 		b.WriteString("  ")
-		b.WriteString(uiansi.Grey)
+		if entryColor != "" {
+			b.WriteString(entryColor)
+		}
 		b.WriteString(entry.age)
 		if pad := switchLogAgeWidth - textwidth.Width(entry.age); pad > 0 {
 			b.WriteString(strings.Repeat(" ", pad))
 		}
-		b.WriteString(uiansi.Reset)
+		if entryColor != "" {
+			b.WriteString(uiansi.Reset)
+		}
 		b.WriteString(" ")
-		b.WriteString(uiansi.Grey)
+		if entryColor != "" {
+			b.WriteString(entryColor)
+		}
 		b.WriteString(entry.subject)
-		b.WriteString(uiansi.Reset)
+		if entryColor != "" {
+			b.WriteString(uiansi.Reset)
+		}
 		b.WriteString("\n")
 	}
 	return b.String()
