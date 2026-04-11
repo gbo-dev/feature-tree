@@ -9,6 +9,18 @@ fmt:
 test:
 	go test ./...
 
+lint:
+	golangci-lint run ./...
+
+deadcode:
+	deadcode -test ./...
+
+check:
+	just fmt
+	just test
+	just lint
+	just deadcode
+
 race:
 	go test -race ./...
 

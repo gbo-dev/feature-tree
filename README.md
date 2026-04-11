@@ -89,7 +89,6 @@ Use `ft create <branch>` for any subsequent branches: it handles worktree creati
 | `ft copy-include [--from <branch>] [--to <branch>]` | Sync include-manifest files across worktrees |
 | `ft init [bash\|zsh]` | Print shell integration snippet |
 | `ft completion [bash\|zsh]` | Print tab-completion script |
-| `ft pr [num]` | Create worktree for specific PR num, similar to `gh pr checkout`|
 
 Run `ft help` for flag details.
 
