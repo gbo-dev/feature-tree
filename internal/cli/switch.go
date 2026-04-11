@@ -73,10 +73,15 @@ Interactive picker notes:
 				return err
 			}
 
+			out := cmd.OutOrStdout()
 			if result.Created {
-				fmt.Fprintf(cmd.OutOrStdout(), "Created worktree: %s -> %s\n", result.Branch, result.Path)
+				if _, err := fmt.Fprintf(out, "Created worktree: %s -> %s\n", result.Branch, result.Path); err != nil {
+					return fmt.Errorf("ft: write switch output: %w", err)
+				}
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Switched to %s (%s)\n", result.Branch, result.Path)
+			if _, err := fmt.Fprintf(out, "Switched to %s (%s)\n", result.Branch, result.Path); err != nil {
+				return fmt.Errorf("ft: write switch output: %w", err)
+			}
 			shell.EmitCDOrWarning(result.Path, cmd.OutOrStdout(), cmd.ErrOrStderr())
 
 			return nil

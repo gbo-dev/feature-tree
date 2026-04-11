@@ -163,7 +163,11 @@ func renderSwitchHeadTab(row pickerRow) string {
 
 func writeSwitchHeadField(b *strings.Builder, label string, value string, valueColor string) {
 	b.WriteString(uiansi.InfoPurple)
-	b.WriteString(fmt.Sprintf("%-11s", label+":"))
+	labelText := label + ":"
+	b.WriteString(labelText)
+	if pad := 11 - len(labelText); pad > 0 {
+		b.WriteString(strings.Repeat(" ", pad))
+	}
 	b.WriteString(uiansi.Reset)
 	if valueColor != "" {
 		b.WriteString(valueColor)
@@ -177,7 +181,8 @@ func writeSwitchHeadField(b *strings.Builder, label string, value string, valueC
 
 func writeSwitchHeadCommitField(b *strings.Builder, hash string, subject string) {
 	b.WriteString(uiansi.InfoPurple)
-	b.WriteString(fmt.Sprintf("%-11s", "HEAD:"))
+	b.WriteString("HEAD:")
+	b.WriteString(strings.Repeat(" ", 6))
 	b.WriteString(uiansi.Reset)
 	b.WriteString(hash)
 	b.WriteString(" ")

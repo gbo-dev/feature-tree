@@ -13,7 +13,7 @@ import (
 	"github.com/gbo-dev/feature-tree/internal/gitx"
 )
 
-func (s *Service) CopyIncludeBetweenBranches(fromBranch string, toBranch string) error {
+func (s *Service) CopyIncludeBetweenBranches(fromBranch string, toBranch string) (err error) {
 	worktrees, err := gitx.ListWorktrees(s.CommandCtx, s.Ctx)
 	if err != nil {
 		return err
@@ -41,7 +41,11 @@ func (s *Service) CopyIncludeBetweenBranches(fromBranch string, toBranch string)
 		}
 		return fmt.Errorf("ft: read include file %s: %w", includeManifestPath, err)
 	}
-	defer includeManifestFile.Close()
+	defer func() {
+		if closeErr := includeManifestFile.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("ft: close include file %s: %w", includeManifestPath, closeErr)
+		}
+	}()
 
 	scanner := bufio.NewScanner(includeManifestFile)
 	for scanner.Scan() {
@@ -140,12 +144,16 @@ func copyPreservingShape(src string, dst string) error {
 	return copyFile(src, dst)
 }
 
-func copyFile(src string, dst string) error {
+func copyFile(src string, dst string) (err error) {
 	in, err := os.Open(src)
 	if err != nil {
 		return fmt.Errorf("ft: open include source file %s: %w", src, err)
 	}
-	defer in.Close()
+	defer func() {
+		if closeErr := in.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("ft: close include source file %s: %w", src, closeErr)
+		}
+	}()
 
 	info, err := in.Stat()
 	if err != nil {
@@ -160,13 +168,17 @@ func copyFile(src string, dst string) error {
 	if err != nil {
 		return fmt.Errorf("ft: open include destination file %s: %w", dst, err)
 	}
-	defer out.Close()
+	defer func() {
+		if closeErr := out.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("ft: close include destination file %s: %w", dst, closeErr)
+		}
+	}()
 
-	if _, err := io.Copy(out, in); err != nil {
+	if _, err = io.Copy(out, in); err != nil {
 		return fmt.Errorf("ft: copy %s -> %s: %w", src, dst, err)
 	}
 
-	if err := out.Sync(); err != nil {
+	if err = out.Sync(); err != nil {
 		return fmt.Errorf("ft: sync include destination file %s: %w", dst, err)
 	}
 

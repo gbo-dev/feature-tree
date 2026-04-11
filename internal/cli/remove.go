@@ -69,23 +69,47 @@ func newRemoveCmd() *cobra.Command {
 				return err
 			}
 
+			out := cmd.OutOrStdout()
+			writeLine := func(format string, args ...any) error {
+				if _, err := fmt.Fprintf(out, format, args...); err != nil {
+					return fmt.Errorf("ft: write remove output: %w", err)
+				}
+				return nil
+			}
+
 			if result.NoDeleteBranch {
-				fmt.Fprintf(cmd.OutOrStdout(), "Removed worktree: %s\n", result.Path)
+				if err := writeLine("Removed worktree: %s\n", result.Path); err != nil {
+					return err
+				}
 			} else if result.DeletedMerged {
 				if result.TargetRef == svc.Ctx.DefaultBranch {
-					fmt.Fprintf(cmd.OutOrStdout(), "Removed worktree and deleted merged branch: %s\n", result.Branch)
+					if err := writeLine("Removed worktree and deleted merged branch: %s\n", result.Branch); err != nil {
+						return err
+					}
 				} else {
-					fmt.Fprintf(cmd.OutOrStdout(), "Removed worktree and deleted branch: %s (fully contained in %s)\n", result.Branch, result.TargetRef)
+					if err := writeLine("Removed worktree and deleted branch: %s (fully contained in %s)\n", result.Branch, result.TargetRef); err != nil {
+						return err
+					}
 				}
 			} else if result.DeletedIdentical {
-				fmt.Fprintf(cmd.OutOrStdout(), "Removed worktree and deleted branch: %s (identical to %s)\n", result.Branch, result.TargetRef)
+				if err := writeLine("Removed worktree and deleted branch: %s (identical to %s)\n", result.Branch, result.TargetRef); err != nil {
+					return err
+				}
 			} else if result.DeletedEquivalent {
-				fmt.Fprintf(cmd.OutOrStdout(), "Removed worktree and deleted branch: %s (no effective changes vs %s)\n", result.Branch, result.TargetRef)
+				if err := writeLine("Removed worktree and deleted branch: %s (no effective changes vs %s)\n", result.Branch, result.TargetRef); err != nil {
+					return err
+				}
 			} else if result.DeletedForced {
-				fmt.Fprintf(cmd.OutOrStdout(), "Removed worktree and force-deleted branch: %s\n", result.Branch)
+				if err := writeLine("Removed worktree and force-deleted branch: %s\n", result.Branch); err != nil {
+					return err
+				}
 			} else {
-				fmt.Fprintf(cmd.OutOrStdout(), "Removed worktree: %s\n", result.Path)
-				fmt.Fprintf(cmd.OutOrStdout(), "Kept branch: %s (not merged to %s; use -D to force delete)\n", result.Branch, result.TargetRef)
+				if err := writeLine("Removed worktree: %s\n", result.Path); err != nil {
+					return err
+				}
+				if err := writeLine("Kept branch: %s (not merged to %s; use -D to force delete)\n", result.Branch, result.TargetRef); err != nil {
+					return err
+				}
 			}
 
 			if strings.TrimSpace(result.FallbackPath) != "" {

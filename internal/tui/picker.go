@@ -176,7 +176,7 @@ func fitListLayout(l rowLayout) rowLayout {
 	overflow = reduceWidth(&l.commitWidth, colWidthCommit, overflow)
 	overflow = reduceWidth(&l.relationWidth, colWidthRelation, overflow)
 	overflow = reduceWidth(&l.branchWidth, branchColMinWidth, overflow)
-	overflow = reduceWidth(&l.stateWidth, colWidthState, overflow)
+	reduceWidth(&l.stateWidth, colWidthState, overflow)
 
 	return l
 }
@@ -715,14 +715,18 @@ func PrintWorktreeList(commandCtx context.Context, entries []gitx.Worktree, curr
 		{colTitleRelation, l.relationWidth},
 		{colTitleCommit, l.commitWidth},
 	})
-	fmt.Fprintln(w, header)
+	if _, err := fmt.Fprintln(w, header); err != nil {
+		return fmt.Errorf("print worktree list header: %w", err)
+	}
 
 	for _, line := range buildFZFLines(rows, l) {
 		// Strip the hidden "\t<branch>" suffix — only the display column is printed.
 		if idx := strings.Index(line, "\t"); idx >= 0 {
 			line = line[:idx]
 		}
-		fmt.Fprintln(w, line)
+		if _, err := fmt.Fprintln(w, line); err != nil {
+			return fmt.Errorf("print worktree list row: %w", err)
+		}
 	}
 
 	return nil

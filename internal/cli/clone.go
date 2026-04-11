@@ -30,10 +30,19 @@ func newCloneCmd() *cobra.Command {
 				return err
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Cloned into %s\n", result.RepoRoot)
-			fmt.Fprintf(cmd.OutOrStdout(), "Default branch: %s\n", result.DefaultBranch)
-			fmt.Fprintf(cmd.OutOrStdout(), "Worktree: %s\n", result.WorktreePath)
-			fmt.Fprintf(cmd.OutOrStdout(), "\ncd %s/%s\n", result.RepoRoot, result.DefaultBranch)
+			out := cmd.OutOrStdout()
+			if _, err := fmt.Fprintf(out, "Cloned into %s\n", result.RepoRoot); err != nil {
+				return fmt.Errorf("ft: write clone output: %w", err)
+			}
+			if _, err := fmt.Fprintf(out, "Default branch: %s\n", result.DefaultBranch); err != nil {
+				return fmt.Errorf("ft: write clone output: %w", err)
+			}
+			if _, err := fmt.Fprintf(out, "Worktree: %s\n", result.WorktreePath); err != nil {
+				return fmt.Errorf("ft: write clone output: %w", err)
+			}
+			if _, err := fmt.Fprintf(out, "\ncd %s/%s\n", result.RepoRoot, result.DefaultBranch); err != nil {
+				return fmt.Errorf("ft: write clone output: %w", err)
+			}
 			return nil
 		},
 	}

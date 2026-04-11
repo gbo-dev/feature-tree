@@ -80,12 +80,13 @@ Use `ft create <branch>` for any subsequent branches: it handles worktree creati
 | Command | Description |
 |---|---|
 | `ft clone <url> [dir]` | Clone a repo into bare-in-`.git` layout with an initial worktree |
-| `ft switch [branch]` | Switch to an existing worktree; opens fzf picker if no branch given (`tab`/`s-tab` preview tabs in picker) |
-| `ft create [branch]` | Create a branch worktree; picker opens only with `--all-branches` and no branch |
+| `ft switch [--create] [--base <branch>] [branch]` | Switch to an existing worktree; optionally create missing worktree; opens fzf picker if no branch given (`tab`/`s-tab` preview tabs in picker) |
+| `ft create [--all-branches] [--base <branch>] [branch]` | Create a branch worktree; picker opens only with `--all-branches` and no branch |
 | `ft list` | List worktrees with status |
 | `ft remove [branch]` | Remove a worktree (and optionally its branch) |
 | `ft squash [--base <branch>]` | Squash current branch commits into one |
-| `ft copy-include` | Sync include-manifest files across worktrees |
+| `ft pr <num> [--use-pr-ref]` | Fetch and checkout a PR as a worktree (`--use-pr-ref` forces `pull/<num>` naming) |
+| `ft copy-include [--from <branch>] [--to <branch>]` | Sync include-manifest files across worktrees |
 | `ft init [bash\|zsh]` | Print shell integration snippet |
 | `ft completion [bash\|zsh]` | Print tab-completion script |
 | `ft pr [num]` | Create worktree for specific PR num, similar to `gh pr checkout`|
@@ -172,7 +173,10 @@ Optional dead code analysis is available with `deadcode`:
 ```sh
 go install golang.org/x/tools/cmd/deadcode@latest
 deadcode ./...
+deadcode -test ./...
 ```
+
+Use `deadcode -test ./...` when you want test helpers counted as live; plain `deadcode ./...` reports only production-reachable code from main packages.
 
 <!-- ## TODO
 

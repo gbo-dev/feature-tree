@@ -23,7 +23,7 @@ func newSquashCmd() *cobra.Command {
 			}
 			return nil
 		},
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) (err error) {
 			svc, err := core.NewService(cmd.Context())
 			if err != nil {
 				return err
@@ -96,7 +96,11 @@ func newSquashCmd() *cobra.Command {
 				return fmt.Errorf("ft: create temporary commit message file: %w", err)
 			}
 			tmpPath := tmpFile.Name()
-			defer os.Remove(tmpPath)
+			defer func() {
+				if removeErr := os.Remove(tmpPath); removeErr != nil && err == nil && !os.IsNotExist(removeErr) {
+					err = fmt.Errorf("ft: remove temporary commit message file: %w", removeErr)
+				}
+			}()
 
 			subject := fmt.Sprintf("squash: %s (%d commits)", current, count)
 			lines := []string{subject, "", "Squashed commits:"}
@@ -107,8 +111,13 @@ func newSquashCmd() *cobra.Command {
 				}
 				lines = append(lines, "- "+title)
 			}
-			_, _ = tmpFile.WriteString(strings.Join(lines, "\n") + "\n")
-			_ = tmpFile.Close()
+			if _, err = tmpFile.WriteString(strings.Join(lines, "\n") + "\n"); err != nil {
+				_ = tmpFile.Close()
+				return fmt.Errorf("ft: write temporary commit message file: %w", err)
+			}
+			if err = tmpFile.Close(); err != nil {
+				return fmt.Errorf("ft: close temporary commit message file: %w", err)
+			}
 
 			_, stderr, exitCode, runErr = gitx.RunGit(cmd.Context(), "", "reset", "--soft", strings.TrimSpace(mergeBase))
 			if err := gitx.CommandError("reset branch for squash", stderr, exitCode, runErr, "git reset failed"); err != nil {
@@ -120,7 +129,9 @@ func newSquashCmd() *cobra.Command {
 				return err
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Squashed %d commits on %s into one commit\n", count, current)
+			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "Squashed %d commits on %s into one commit\n", count, current); err != nil {
+				return fmt.Errorf("ft: write squash output: %w", err)
+			}
 			return nil
 		},
 	}
