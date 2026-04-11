@@ -1,33 +1,45 @@
 # ft: feature-tree (WIP)
 
-A lightweight Git worktree helper for bare-in-`.git` repositories, focused on feature-branch workflows.
+A simple git worktree layer that equates worktrees to branches to avoid using stash.
+Repos cloned with `ft clone` are set up as bare, and focuses on parallel feature-branch workflows.
+
+Inspired by [Worktrunk](https://github.com/max-sixty/worktrunk), where I wanted to explore Go, [fzf](https://pkg.go.dev/github.com/junegunn/fzf/src), and have something simple with few dependencies. Check out Worktrunk if you're unsure.
+
+Built with OpenCode and GitHub Copilot, using mainly GPT-5.3 Codex.
 
 ## Dependencies
 
 - **Go 1.24+** to build from source
-- **Git** must be available on `$PATH`
+- **Git**
 - **bash or zsh** for shell integration (auto-`cd` on switch/create)
 
 ## Install
 
 Build the binary and place it somewhere on your `$PATH`.
 
-**Recommended location on Linux/macOS:** `$HOME/.local/bin/ft` (already on `$PATH` in most modern systems; create the directory if needed: `mkdir -p ~/.local/bin`).
+**Recommended location on Linux/macOS:** `$HOME/.local/bin/ft` (on `$PATH` in most modern systems)
 
 **Build from source:**
 
 ```sh
-git clone https://github.com/gbo-dev/feature-tree.git
-cd feature-tree
 go build -buildvcs=false -o ~/.local/bin/ft ./cmd/ft
 ```
+If you have [just](https://github.com/casey/just) installed: 
 
-> **Why `-buildvcs=false` in bare repos?**
+```bash
+just install
+```
+
+<details>
+<summary>Why `-buildvcs=false` in bare repos?</summary>
+
 > Go 1.18+ tries to embed VCS info (commit hash, dirty flag) into the binary by running `git` subprocesses from the module directory. Inside a bare-in-`.git` worktree, these calls fail because git's working-tree detection gets confused. Pass `-buildvcs=false` to disable VCS stamping and avoid the error. Not needed when building from a regular clone.
+
+</details>
 
 ## Shell integration (auto-cd)
 
-A Go binary cannot change its caller's working directory — this is an OS constraint that applies in any language. `ft` prints a `__FT_CD__=<path>` marker on stdout that the shell wrapper intercepts and turns into a `cd` call.
+A Go binary cannot change its caller's working directory: this is an OS constraint that applies in any language. `ft` prints a `__FT_CD__=<path>` marker on stdout that the shell wrapper intercepts and turns into a `cd` call.
 
 Add this line to your `~/.zshrc` or `~/.bashrc` (it evaluates the shell function once at shell startup):
 
@@ -35,7 +47,7 @@ Add this line to your `~/.zshrc` or `~/.bashrc` (it evaluates the shell function
 eval "$(ft init zsh)"    # or bash
 ```
 
-Or simply copy the output of `ft init zsh` to your `.zshrc`.
+Or better yet, copy the output of `ft init <shell>` to your shell rc file.
 
 Remember to open a new shell (or `source ~/.zshrc`) for it to take effect.
 
@@ -56,16 +68,12 @@ repo/
   my-feature/    ← worktree for branch 'my-feature'
 ```
 
-Create your first worktree (the default branch):
+Use `ft create <branch>` for any subsequent branches: it handles worktree creation and copies the include manifest automatically.
 
-```sh
-cd <repo>
-git --git-dir=.git worktree add <default-branch> <default-branch>
-```
-
-Then use `ft create <branch>` for any subsequent branches — it handles worktree creation and copies the include manifest automatically.
-
-> **Note:** `git clone --bare` does not set up `origin/HEAD` or branch tracking entries by default. Run `git --git-dir=.git remote set-head origin --auto` after cloning so `ft` can auto-detect the default branch. `ft clone` already handles this bootstrap automatically (see below).
+> [!TIP]
+> Running `git clone --bare` or using worktrees natively does not set up `origin/HEAD` or branch tracking entries by default. Run `git --git-dir=.git remote set-head origin --auto` after cloning so `ft` can auto-detect the default branch. 
+> 
+> Or run `ft clone`, as it already handles this bootstrap automatically (see below).
 
 ## Commands
 
@@ -80,14 +88,13 @@ Then use `ft create <branch>` for any subsequent branches — it handles worktre
 | `ft copy-include` | Sync include-manifest files across worktrees |
 | `ft init [bash\|zsh]` | Print shell integration snippet |
 | `ft completion [bash\|zsh]` | Print tab-completion script |
+| `ft pr [num]` | Create worktree for specific PR num, similar to `gh pr checkout`|
 
 Run `ft help` for flag details.
 
 ## Removal safety
 
-`ft remove` blocks if:
-- the worktree has uncommitted changes
-- the branch has local commits not pushed to its upstream
+`ft remove` blocks if the worktree has uncommitted changes or the branch has local commits not pushed to its upstream.
 
 Pass `-f` / `--force-worktree` to override. Pass `-D` / `--force-branch` to force-delete the branch regardless of merge status.
 
@@ -156,7 +163,6 @@ internal/
   shell/        shell integration script generation
   tui/          embedded fzf picker
 references/     design notes and option references
-legacy/         archived shell-script predecessor
 ```
 
 ## Developer checks
@@ -170,11 +176,8 @@ deadcode ./...
 
 <!-- ## TODO
 
-- Build a full automated test suite (unit + integration) for safety-critical flows: remove safety checks, branch shortcut resolution (`^`, `@`), clone bootstrap, and shell integration behavior.
 - Harden and verify the cancellation path end-to-end: Ctrl+C should cancel the Cobra command context and terminate in-flight git subprocesses immediately (not only via timeout), with integration coverage for long-running operations.
 - Fix Unicode visible-width truncation/alignment issues in TUI rendering: current truncation mixes byte-based slicing with terminal-column assumptions, which can misalign rows or truncate incorrectly for wide glyphs, combining marks, emoji, and other multi-codepoint grapheme clusters (including cases where ellipsis width appears inconsistent across terminals/fonts).
-- Implement a single display-width utility for all truncation paths, based on grapheme-aware segmentation plus terminal-width calculation, and cover it with targeted fixtures (CJK, emoji ZWJ sequences, combining accents, and plain ASCII).
-- [Switch picker view paging notes](references/switch-view-paging-notes.md)
 -->
 
 ## Approach
@@ -182,15 +185,9 @@ deadcode ./...
 - Bare-in-`.git` layout required (worktrees live alongside `.git/`)
 - Default branch is auto-detected from `origin/HEAD`, then falls back to `main/master/trunk`
 - Include manifest (`.worktreeinclude`) is copied from the default branch on worktree creation
-- fzf is embedded via `github.com/junegunn/fzf/src` — no system fzf required
+- fzf is embedded via `github.com/junegunn/fzf/src`: no system fzf required
 - Git command failures are normalized in `internal/gitx` (`CommandError`/`ExpectSuccess`); core logic wraps operation context, and CLI prints the final user-facing error once
-
-## Error Handling Convention
-
-- `internal/gitx` normalizes git subprocess failures via `CommandError`/`ExpectSuccess` so stderr, exit status, cancellations, and timeouts are handled consistently.
-- `internal/core` wraps domain-operation context with `%w` and avoids ad-hoc stderr formatting.
-- `internal/cli` returns errors from command handlers and keeps final user-facing formatting at the command boundary.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT: see [LICENSE](LICENSE).
