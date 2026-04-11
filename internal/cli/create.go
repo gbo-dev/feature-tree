@@ -69,10 +69,15 @@ func newCreateCmd() *cobra.Command {
 				return err
 			}
 
+			out := cmd.OutOrStdout()
 			if result.Created {
-				fmt.Fprintf(cmd.OutOrStdout(), "Created worktree: %s -> %s\n", result.Branch, result.Path)
+				if _, err := fmt.Fprintf(out, "Created worktree: %s -> %s\n", result.Branch, result.Path); err != nil {
+					return fmt.Errorf("ft: write create output: %w", err)
+				}
 			} else {
-				fmt.Fprintf(cmd.OutOrStdout(), "Already exists: %s (%s)\n", result.Branch, result.Path)
+				if _, err := fmt.Fprintf(out, "Already exists: %s (%s)\n", result.Branch, result.Path); err != nil {
+					return fmt.Errorf("ft: write create output: %w", err)
+				}
 			}
 
 			shell.EmitCDOrWarning(result.Path, cmd.OutOrStdout(), cmd.ErrOrStderr())

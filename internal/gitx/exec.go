@@ -24,11 +24,13 @@ func RunGit(ctx context.Context, dir string, args ...string) (stdout string, std
 }
 
 func RunGitCommon(commandCtx context.Context, repoCtx *RepoContext, args ...string) (stdout string, stderr string, exitCode int, err error) {
+	if repoCtx == nil {
+		return "", "", -1, fmt.Errorf("ft: missing repository context")
+	}
+
 	fullArgs := append([]string{"--git-dir", repoCtx.GitCommonDir}, args...)
 	workingDir := ""
-	if repoCtx != nil {
-		workingDir = strings.TrimSpace(repoCtx.RepoRoot)
-	}
+	workingDir = strings.TrimSpace(repoCtx.RepoRoot)
 	return runCommand(normalizeCommandContext(commandCtx), workingDir, "git", fullArgs...)
 }
 

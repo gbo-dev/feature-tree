@@ -40,7 +40,9 @@ func newPickerPreviewCmd() *cobra.Command {
 				return fmt.Errorf("ft: read preview cache file: %w", err)
 			}
 
-			fmt.Fprint(cmd.OutOrStdout(), string(data))
+			if _, err := fmt.Fprint(cmd.OutOrStdout(), string(data)); err != nil {
+				return fmt.Errorf("ft: write preview cache output: %w", err)
+			}
 			return nil
 		},
 	}
@@ -124,7 +126,9 @@ func newPickerPreviewTabCmd() *cobra.Command {
 			}
 
 			header := renderPreviewHeaderLine(tab)
-			fmt.Fprint(cmd.OutOrStdout(), header+"\n"+string(data))
+			if _, err := fmt.Fprint(cmd.OutOrStdout(), header+"\n"+string(data)); err != nil {
+				return fmt.Errorf("ft: write preview tab output: %w", err)
+			}
 			return nil
 		},
 	}

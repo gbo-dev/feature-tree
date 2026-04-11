@@ -41,7 +41,9 @@ Source once in your shell config:
 				return err
 			}
 
-			fmt.Fprint(cmd.OutOrStdout(), script)
+			if _, err := fmt.Fprint(cmd.OutOrStdout(), script); err != nil {
+				return fmt.Errorf("ft: write init script: %w", err)
+			}
 			return nil
 		},
 	}

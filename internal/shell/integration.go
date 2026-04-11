@@ -20,13 +20,19 @@ func EmitCDOrWarning(path string, stdout io.Writer, stderr io.Writer) {
 	}
 
 	if os.Getenv(EmitCDEnv) == EmitCDValue {
-		fmt.Fprintf(stdout, "%s%s\n", CDMarkerPrefix, path)
+		if _, err := fmt.Fprintf(stdout, "%s%s\n", CDMarkerPrefix, path); err != nil {
+			return
+		}
 		return
 	}
 
 	hint := PreferredShell()
-	fmt.Fprintln(stderr, "ft: shell integration not active, so automatic directory switching is unavailable")
-	fmt.Fprintf(stderr, "ft: run `eval \"$(ft init %s)\"` to enable auto-cd in this shell\n", hint)
+	if _, err := fmt.Fprintln(stderr, "ft: shell integration not active, so automatic directory switching is unavailable"); err != nil {
+		return
+	}
+	if _, err := fmt.Fprintf(stderr, "ft: run `eval \"$(ft init %s)\"` to enable auto-cd in this shell\n", hint); err != nil {
+		return
+	}
 }
 
 func InitScript(shellName string) (string, error) {

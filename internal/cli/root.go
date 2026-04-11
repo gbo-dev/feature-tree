@@ -22,8 +22,7 @@ func newRootCmd() *cobra.Command {
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			renderRootOverview(cmd)
-			return nil
+			return renderRootOverview(cmd)
 		},
 	}
 
@@ -90,12 +89,18 @@ var helpTemplate = fmt.Sprintf(`%s%sft%s (feature-tree) – lightweight git work
 	uiansi.InfoPurple, uiansi.Reset,
 )
 
-func renderRootOverview(cmd *cobra.Command) {
+func renderRootOverview(cmd *cobra.Command) error {
 	w := cmd.OutOrStdout()
 
-	fmt.Fprintf(w, "%s%sft%s (feature-tree) – lightweight git worktree helper\n\n", ansiBold, uiansi.InfoPurple, uiansi.Reset)
-	fmt.Fprintf(w, "%sUsage:%s\n", uiansi.InfoPurple, uiansi.Reset)
-	fmt.Fprintf(w, "  %sft%s <command> [flags]\n\n", uiansi.Periwinkle, uiansi.Reset)
+	if _, err := fmt.Fprintf(w, "%s%sft%s (feature-tree) – lightweight git worktree helper\n\n", ansiBold, uiansi.InfoPurple, uiansi.Reset); err != nil {
+		return fmt.Errorf("ft: write overview output: %w", err)
+	}
+	if _, err := fmt.Fprintf(w, "%sUsage:%s\n", uiansi.InfoPurple, uiansi.Reset); err != nil {
+		return fmt.Errorf("ft: write overview output: %w", err)
+	}
+	if _, err := fmt.Fprintf(w, "  %sft%s <command> [flags]\n\n", uiansi.Periwinkle, uiansi.Reset); err != nil {
+		return fmt.Errorf("ft: write overview output: %w", err)
+	}
 
 	visibleCommands := make([]*cobra.Command, 0, len(cmd.Commands()))
 	maxNameWidth := 0
@@ -109,10 +114,18 @@ func renderRootOverview(cmd *cobra.Command) {
 		}
 	}
 
-	fmt.Fprintf(w, "%sAvailable Commands:%s\n", uiansi.InfoPurple, uiansi.Reset)
+	if _, err := fmt.Fprintf(w, "%sAvailable Commands:%s\n", uiansi.InfoPurple, uiansi.Reset); err != nil {
+		return fmt.Errorf("ft: write overview output: %w", err)
+	}
 	for _, sub := range visibleCommands {
-		fmt.Fprintf(w, "  %s%-*s%s  %s\n", uiansi.Periwinkle, maxNameWidth, sub.Name(), uiansi.Reset, sub.Short)
+		if _, err := fmt.Fprintf(w, "  %s%-*s%s  %s\n", uiansi.Periwinkle, maxNameWidth, sub.Name(), uiansi.Reset, sub.Short); err != nil {
+			return fmt.Errorf("ft: write overview output: %w", err)
+		}
 	}
 
-	fmt.Fprintf(w, "\nRun %sft --help%s for full details.\n", uiansi.Periwinkle, uiansi.Reset)
+	if _, err := fmt.Fprintf(w, "\nRun %sft --help%s for full details.\n", uiansi.Periwinkle, uiansi.Reset); err != nil {
+		return fmt.Errorf("ft: write overview output: %w", err)
+	}
+
+	return nil
 }

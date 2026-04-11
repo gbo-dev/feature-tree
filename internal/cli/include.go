@@ -54,7 +54,9 @@ func newIncludeCmd() *cobra.Command {
 				return err
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Copied include entries from %s to %s\n", from, to)
+			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "Copied include entries from %s to %s\n", from, to); err != nil {
+				return fmt.Errorf("ft: write copy-include output: %w", err)
+			}
 			return nil
 		},
 	}

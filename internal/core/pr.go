@@ -2,7 +2,6 @@ package core
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/gbo-dev/feature-tree/internal/gitx"
@@ -16,10 +15,6 @@ type PRInfo struct {
 	BaseBranch string
 	BaseSHA    string
 	Title      string
-}
-
-func (s *Service) FetchAndCheckoutPR(prNumber int) (*PRResult, error) {
-	return s.FetchAndCheckoutPRWithOptions(prNumber, PRCheckoutOptions{})
 }
 
 type PRCheckoutOptions struct {
@@ -74,18 +69,13 @@ func (s *Service) FetchAndCheckoutPRWithOptions(prNumber int, options PRCheckout
 		Created: result.Created,
 	}, nil
 }
-
-func (s *Service) GetPRInfo(prNumber int) (*PRInfo, error) {
-	return s.getPRInfo(prNumber, false)
-}
-
 func (s *Service) getPRInfo(prNumber int, usePRRef bool) (*PRInfo, error) {
 	refsToTry := []string{
 		fmt.Sprintf("refs/pull/%d/head", prNumber),
 		fmt.Sprintf("refs/pull/%d/merge", prNumber),
 	}
 
-	headRef := fmt.Sprintf("pull/%d", prNumber)
+	var headRef string
 	var headSHA string
 
 	for _, ref := range refsToTry {
@@ -253,15 +243,4 @@ func (s *Service) findBranchNameBySHA(refNamespace string, headSHA string, strip
 	}
 
 	return ""
-}
-
-func ParsePRNumber(input string) (int, error) {
-	prNum, err := strconv.Atoi(input)
-	if err != nil {
-		return 0, fmt.Errorf("ft: %q is not a valid PR number", input)
-	}
-	if prNum <= 0 {
-		return 0, fmt.Errorf("ft: PR number must be positive")
-	}
-	return prNum, nil
 }
