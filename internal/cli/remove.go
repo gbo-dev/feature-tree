@@ -64,6 +64,10 @@ func newRemoveCmd() *cobra.Command {
 				}
 			}
 
+			if fetchErr := gitx.FetchOrigin(cmd.Context(), svc.Ctx); fetchErr != nil {
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "ft: could not fetch from origin (%s); using cached refs\n", fetchErr)
+			}
+
 			result, err := svc.RemoveWorktree(branch, forceWorktree, forceBranch, noDeleteBranch)
 			if err != nil {
 				return err

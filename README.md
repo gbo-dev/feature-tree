@@ -181,6 +181,7 @@ Use `deadcode -test ./...` when you want test helpers counted as live; plain `de
 
 - Harden and verify the cancellation path end-to-end: Ctrl+C should cancel the Cobra command context and terminate in-flight git subprocesses immediately (not only via timeout), with integration coverage for long-running operations.
 - Fix Unicode visible-width truncation/alignment issues in TUI rendering: current truncation mixes byte-based slicing with terminal-column assumptions, which can misalign rows or truncate incorrectly for wide glyphs, combining marks, emoji, and other multi-codepoint grapheme clusters (including cases where ellipsis width appears inconsistent across terminals/fonts).
+-  inject an io.Writer/logger into Service instead of hardcoding os.Stderr
 -->
 
 ## Approach
