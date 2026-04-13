@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/gbo-dev/feature-tree/internal/gitx"
@@ -30,6 +31,13 @@ func (s *Service) FetchAndCheckoutPRWithOptions(prNumber int, options PRCheckout
 	if err := s.ensureLocalRefUpdated(prInfo); err != nil {
 		return nil, err
 	}
+
+	if options.UsePRRef {
+		prInfo.HeadRef = fmt.Sprintf("pull/%d", prNumber)
+	} else {
+		prInfo.HeadRef = s.resolvePRBranchName(prNumber, prInfo.HeadSHA)
+	}
+	prInfo.HeadRemote = s.findBranchNameBySHA("refs/remotes/origin", prInfo.HeadSHA, true)
 
 	worktrees, err := gitx.ListWorktrees(s.CommandCtx, s.Ctx)
 	if err != nil {
@@ -189,14 +197,27 @@ func (s *Service) ensureLocalRefUpdated(prInfo *PRInfo) error {
 		currentSHA = strings.TrimSpace(stdout)
 	}
 
-	if currentSHA != "" && currentSHA == prInfo.HeadSHA {
-		return nil
-	}
-
-	_, stderr, exitCode, runErr := gitx.RunGitCommon(s.CommandCtx, s.Ctx, "fetch", "origin", fmt.Sprintf("pull/%d/head", prInfo.Number))
+	_, stderr, exitCode, runErr := gitx.RunGitCommon(
+		s.CommandCtx,
+		s.Ctx,
+		"fetch",
+		"origin",
+		fmt.Sprintf("pull/%d/head:%s", prInfo.Number, ref),
+	)
 	if err := gitx.CommandError("update PR ref", stderr, exitCode, runErr, "git fetch failed"); err != nil {
+		if currentSHA != "" {
+			_, _ = fmt.Fprintf(os.Stderr, "ft: warning: failed to update PR #%d from origin; using cached ref %s\n", prInfo.Number, ref)
+			prInfo.HeadSHA = currentSHA
+			return nil
+		}
 		return fmt.Errorf("ft: failed to update PR #%d: %w", prInfo.Number, err)
 	}
+
+	stdout, stderr, exitCode, runErr = gitx.RunGitCommon(s.CommandCtx, s.Ctx, "rev-parse", "--verify", ref)
+	if err := gitx.CommandError("resolve updated PR commit", stderr, exitCode, runErr, "git rev-parse failed"); err != nil {
+		return fmt.Errorf("ft: failed to resolve PR #%d commit: %w", prInfo.Number, err)
+	}
+	prInfo.HeadSHA = strings.TrimSpace(stdout)
 
 	return nil
 }

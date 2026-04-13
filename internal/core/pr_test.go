@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -438,6 +439,124 @@ func TestEnsureLocalRefUpdatedRefreshesStaleRef(t *testing.T) {
 	updatedSHA := strings.TrimSpace(stdout)
 	if updatedSHA != prInfo.HeadSHA {
 		t.Fatalf("ensureLocalRefUpdated: expected SHA %q, got %q", prInfo.HeadSHA, updatedSHA)
+	}
+}
+
+func TestFetchAndCheckoutPRRefreshesStaleLocalPRRefBeforeResolvingBranchName(t *testing.T) {
+	base := t.TempDir()
+	source := filepath.Join(base, "source")
+	testutil.InitRepoWithMain(t, source)
+
+	featureBranch := "feature-pr-refresh"
+	testutil.RunGit(t, source, "checkout", "-b", featureBranch)
+
+	prFile := filepath.Join(source, "refresh-pr-file.txt")
+	if err := os.WriteFile(prFile, []byte("refresh PR content\n"), 0o644); err != nil {
+		t.Fatalf("write refresh PR file: %v", err)
+	}
+	testutil.RunGit(t, source, "add", "refresh-pr-file.txt")
+	testutil.RunGit(t, source, "commit", "-m", "refresh PR commit")
+	testutil.RunGit(t, source, "checkout", "main")
+
+	remote := filepath.Join(base, "origin.git")
+	testutil.RunGit(t, "", "clone", "--bare", source, remote)
+
+	target := filepath.Join(base, "repo")
+	cloneResult, err := gitx.CloneRepo(context.Background(), remote, target)
+	if err != nil {
+		t.Fatalf("CloneRepo failed: %v", err)
+	}
+
+	prNumber := 808
+	featureSHA := testutil.RunGit(t, source, "rev-parse", "--verify", featureBranch)
+	staleSHA := testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "rev-parse", "--verify", "refs/heads/"+cloneResult.DefaultBranch)
+
+	testutil.RunGit(t, "", "--git-dir", remote, "update-ref", fmt.Sprintf("refs/pull/%d/head", prNumber), featureSHA)
+	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "update-ref", fmt.Sprintf("refs/pull/%d/head", prNumber), staleSHA)
+
+	svc := &Service{
+		Ctx: &gitx.RepoContext{
+			RepoRoot:      cloneResult.RepoRoot,
+			GitCommonDir:  cloneResult.GitCommonDir,
+			DefaultBranch: cloneResult.DefaultBranch,
+			IncludeFile:   ".worktreeinclude",
+		},
+		CommandCtx: context.Background(),
+	}
+
+	result, err := svc.FetchAndCheckoutPRWithOptions(prNumber, PRCheckoutOptions{})
+	if err != nil {
+		t.Fatalf("FetchAndCheckoutPRWithOptions returned error: %v", err)
+	}
+	if result.Branch != featureBranch {
+		t.Fatalf("FetchAndCheckoutPRWithOptions Branch = %q, want %q", result.Branch, featureBranch)
+	}
+
+	refSHA := testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "rev-parse", "--verify", fmt.Sprintf("refs/pull/%d/head", prNumber))
+	if refSHA != featureSHA {
+		t.Fatalf("refs/pull/%d/head = %q, want %q", prNumber, refSHA, featureSHA)
+	}
+}
+
+func TestFetchAndCheckoutPRWithCachedRefAndNoOriginWarnsAndUsesCache(t *testing.T) {
+	base := t.TempDir()
+	source := filepath.Join(base, "source")
+	testutil.InitRepoWithMain(t, source)
+
+	remote := filepath.Join(base, "origin.git")
+	testutil.RunGit(t, "", "clone", "--bare", source, remote)
+
+	target := filepath.Join(base, "repo")
+	cloneResult, err := gitx.CloneRepo(context.Background(), remote, target)
+	if err != nil {
+		t.Fatalf("CloneRepo failed: %v", err)
+	}
+
+	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "update-ref", "refs/pull/42/head", "refs/heads/"+cloneResult.DefaultBranch)
+	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "remote", "remove", "origin")
+
+	svc := &Service{
+		Ctx: &gitx.RepoContext{
+			RepoRoot:      cloneResult.RepoRoot,
+			GitCommonDir:  cloneResult.GitCommonDir,
+			DefaultBranch: cloneResult.DefaultBranch,
+			IncludeFile:   ".worktreeinclude",
+		},
+		CommandCtx: context.Background(),
+	}
+
+	originalStderr := os.Stderr
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatalf("os.Pipe failed: %v", pipeErr)
+	}
+	os.Stderr = w
+	defer func() {
+		os.Stderr = originalStderr
+	}()
+
+	result, err := svc.FetchAndCheckoutPRWithOptions(42, PRCheckoutOptions{})
+	if err != nil {
+		t.Fatalf("FetchAndCheckoutPRWithOptions returned error: %v", err)
+	}
+	if result.Branch != "pull/42" {
+		t.Fatalf("FetchAndCheckoutPRWithOptions Branch = %q, want %q", result.Branch, "pull/42")
+	}
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("close write pipe failed: %v", err)
+	}
+	warningBytes, readErr := io.ReadAll(r)
+	if readErr != nil {
+		t.Fatalf("read warning output failed: %v", readErr)
+	}
+	if err := r.Close(); err != nil {
+		t.Fatalf("close read pipe failed: %v", err)
+	}
+
+	warningOutput := string(warningBytes)
+	if !strings.Contains(warningOutput, "failed to update PR #42 from origin; using cached ref refs/pull/42/head") {
+		t.Fatalf("warning output = %q, want cached-ref warning", warningOutput)
 	}
 }
 
