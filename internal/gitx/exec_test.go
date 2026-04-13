@@ -77,3 +77,38 @@ func TestRunGitCommonWorksWhenProcessCWDWasDeleted(t *testing.T) {
 		t.Fatalf("RunGitCommon stdout = %q, want %q", stdout, "main")
 	}
 }
+
+func TestFetchOriginPrefixesErrors(t *testing.T) {
+	repo := filepath.Join(t.TempDir(), "repo")
+	testutil.InitRepoWithMain(t, repo)
+
+	repoCtx := &RepoContext{
+		RepoRoot:     repo,
+		GitCommonDir: filepath.Join(repo, ".git"),
+	}
+
+	err := FetchOrigin(context.Background(), repoCtx)
+	if err == nil {
+		t.Fatalf("FetchOrigin expected error when origin remote is missing")
+	}
+	if !strings.Contains(err.Error(), "fetch failed:") {
+		t.Fatalf("FetchOrigin error = %q, expected fetch failure context prefix", err.Error())
+	}
+}
+
+func TestFetchOriginTreatsCanceledContextAsNoOp(t *testing.T) {
+	repo := filepath.Join(t.TempDir(), "repo")
+	testutil.InitRepoWithMain(t, repo)
+
+	repoCtx := &RepoContext{
+		RepoRoot:     repo,
+		GitCommonDir: filepath.Join(repo, ".git"),
+	}
+
+	commandCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	if err := FetchOrigin(commandCtx, repoCtx); err != nil {
+		t.Fatalf("FetchOrigin on canceled context = %v, want nil", err)
+	}
+}
