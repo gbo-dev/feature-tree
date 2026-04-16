@@ -34,7 +34,7 @@ func TestCopyIncludeBetweenBranchesCopiesMatchedFiles(t *testing.T) {
 		t.Fatalf("write source include file: %v", err)
 	}
 
-	if err := svc.CopyIncludeBetweenBranches(svc.Ctx.DefaultBranch, featureBranch); err != nil {
+	if err := svc.CopyIncludeBetweenBranches(context.Background(), svc.Ctx.DefaultBranch, featureBranch); err != nil {
 		t.Fatalf("CopyIncludeBetweenBranches returned error: %v", err)
 	}
 

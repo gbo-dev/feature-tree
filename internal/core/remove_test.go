@@ -14,7 +14,7 @@ import (
 func TestRemoveWorktreeRejectsConflictingDeleteFlags(t *testing.T) {
 	svc := &Service{Ctx: &gitx.RepoContext{DefaultBranch: "main"}}
 
-	_, err := svc.RemoveWorktree("feature", false, true, true)
+	_, err := svc.RemoveWorktree(context.Background(), "feature", false, true, true)
 	if err == nil {
 		t.Fatalf("RemoveWorktree expected an error for conflicting flags")
 	}
@@ -31,7 +31,7 @@ func TestEnsureWorktreeSafeToRemoveRejectsDirtyWorktree(t *testing.T) {
 		t.Fatalf("write dirty file: %v", err)
 	}
 
-	err := svc.ensureWorktreeSafeToRemove(featurePath, branch, svc.Ctx.DefaultBranch)
+	err := svc.ensureWorktreeSafeToRemove(context.Background(), featurePath, branch, svc.Ctx.DefaultBranch)
 	if err == nil {
 		t.Fatalf("ensureWorktreeSafeToRemove expected dirty-worktree error")
 	}
@@ -54,7 +54,7 @@ func TestRemoveWorktreeFromInsideTargetWorktree(t *testing.T) {
 		_ = os.Chdir(originalWD)
 	})
 
-	result, err := svc.RemoveWorktree(branch, false, false, false)
+	result, err := svc.RemoveWorktree(context.Background(), branch, false, false, false)
 	if err != nil {
 		t.Fatalf("RemoveWorktree returned unexpected error: %v", err)
 	}
@@ -81,7 +81,7 @@ func TestRemoveWorktreeReportsEquivalentWhenNetChangesAreZero(t *testing.T) {
 	testutil.RunGit(t, featurePath, "rm", "EQUIVALENT.txt")
 	testutil.RunGit(t, featurePath, "commit", "-m", "remove temporary file")
 
-	result, err := svc.RemoveWorktree(branch, false, false, false)
+	result, err := svc.RemoveWorktree(context.Background(), branch, false, false, false)
 	if err != nil {
 		t.Fatalf("RemoveWorktree returned unexpected error: %v", err)
 	}
@@ -107,7 +107,7 @@ func TestBranchDeletionRelationEquivalentWithoutDefaultBranchMerge(t *testing.T)
 	testutil.RunGit(t, featurePath, "rm", "EQUIVALENT-RELATION.txt")
 	testutil.RunGit(t, featurePath, "commit", "-m", "remove temp relation file")
 
-	relation, err := svc.branchDeletionRelation(branch, svc.Ctx.DefaultBranch)
+	relation, err := svc.branchDeletionRelation(context.Background(), branch, svc.Ctx.DefaultBranch)
 	if err != nil {
 		t.Fatalf("branchDeletionRelation returned unexpected error: %v", err)
 	}
@@ -119,7 +119,7 @@ func TestBranchDeletionRelationEquivalentWithoutDefaultBranchMerge(t *testing.T)
 func TestEnsureWorktreeSafeToRemoveAllowsCleanBranchWithoutUpstreamWhenDeletable(t *testing.T) {
 	svc, featurePath, branch := setupServiceWithFeatureWorktree(t)
 
-	err := svc.ensureWorktreeSafeToRemove(featurePath, branch, svc.Ctx.DefaultBranch)
+	err := svc.ensureWorktreeSafeToRemove(context.Background(), featurePath, branch, svc.Ctx.DefaultBranch)
 	if err != nil {
 		t.Fatalf("ensureWorktreeSafeToRemove returned unexpected error: %v", err)
 	}
@@ -137,7 +137,7 @@ func TestEnsureWorktreeSafeToRemoveRejectsBranchAheadOfUpstreamWhenNotDeletable(
 	testutil.RunGit(t, featurePath, "add", "AHEAD.txt")
 	testutil.RunGit(t, featurePath, "commit", "-m", "ahead commit")
 
-	err := svc.ensureWorktreeSafeToRemove(featurePath, branch, svc.Ctx.DefaultBranch)
+	err := svc.ensureWorktreeSafeToRemove(context.Background(), featurePath, branch, svc.Ctx.DefaultBranch)
 	if err == nil {
 		t.Fatalf("ensureWorktreeSafeToRemove expected non-deletable ahead-branch error")
 	}
@@ -152,7 +152,7 @@ func TestEnsureWorktreeSafeToRemoveAllowsBranchAheadOfUpstreamWhenDeletable(t *t
 	testutil.RunGit(t, featurePath, "branch", "--set-upstream-to", "origin/main", branch)
 	testutil.RunGit(t, featurePath, "commit", "--allow-empty", "-m", "empty ahead commit")
 
-	err := svc.ensureWorktreeSafeToRemove(featurePath, branch, svc.Ctx.DefaultBranch)
+	err := svc.ensureWorktreeSafeToRemove(context.Background(), featurePath, branch, svc.Ctx.DefaultBranch)
 	if err != nil {
 		t.Fatalf("ensureWorktreeSafeToRemove returned unexpected error: %v", err)
 	}
@@ -208,7 +208,7 @@ func setupServiceWithFeatureWorktree(t *testing.T) (*Service, string, string) {
 		GitCommonDir:  cloneResult.GitCommonDir,
 		DefaultBranch: cloneResult.DefaultBranch,
 		IncludeFile:   ".worktreeinclude",
-	}, CommandCtx: context.Background()}
+	}}
 
 	return svc, featurePath, branch
 }

@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -12,7 +13,7 @@ import (
 func TestCreateWorktreeCreatesNewBranchAndPath(t *testing.T) {
 	svc, _, _ := setupServiceWithFeatureWorktree(t)
 
-	result, err := svc.CreateWorktree("feature-create", "")
+	result, err := svc.CreateWorktree(context.Background(), "feature-create", "")
 	if err != nil {
 		t.Fatalf("CreateWorktree returned error: %v", err)
 	}
@@ -26,7 +27,7 @@ func TestCreateWorktreeCreatesNewBranchAndPath(t *testing.T) {
 		t.Fatalf("expected created worktree path %q to exist: %v", result.Path, err)
 	}
 
-	if exists, err := gitx.BranchExistsLocal(svc.CommandCtx, svc.Ctx, "feature-create"); err != nil {
+	if exists, err := gitx.BranchExistsLocal(context.Background(), svc.Ctx, "feature-create"); err != nil {
 		t.Fatalf("branch existence check failed: %v", err)
 	} else if !exists {
 		t.Fatalf("expected created branch to exist in bare repository")
@@ -36,7 +37,7 @@ func TestCreateWorktreeCreatesNewBranchAndPath(t *testing.T) {
 func TestCreateWorktreeReturnsExistingWorktreeWithoutCreating(t *testing.T) {
 	svc, featurePath, existingBranch := setupServiceWithFeatureWorktree(t)
 
-	result, err := svc.CreateWorktree(existingBranch, "")
+	result, err := svc.CreateWorktree(context.Background(), existingBranch, "")
 	if err != nil {
 		t.Fatalf("CreateWorktree returned error: %v", err)
 	}
@@ -56,7 +57,7 @@ func TestCreateWorktreeUsesExistingLocalBranchWithoutWorktree(t *testing.T) {
 	branch := "feature-local-only"
 	testutil.RunGit(t, "", "--git-dir", svc.Ctx.GitCommonDir, "branch", branch, svc.Ctx.DefaultBranch)
 
-	result, err := svc.CreateWorktree(branch, "")
+	result, err := svc.CreateWorktree(context.Background(), branch, "")
 	if err != nil {
 		t.Fatalf("CreateWorktree returned error: %v", err)
 	}

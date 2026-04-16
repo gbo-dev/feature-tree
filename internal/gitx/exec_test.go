@@ -11,8 +11,8 @@ import (
 )
 
 func TestRunGitRejectsNilCommandContext(t *testing.T) {
-	var nilCtx context.Context
-	_, _, exitCode, err := RunGit(nilCtx, "", "rev-parse", "--git-dir")
+	//nolint:staticcheck // intentional nil context for guard test
+	_, _, exitCode, err := RunGit(nil, "", "rev-parse", "--git-dir")
 	if err == nil {
 		t.Fatalf("RunGit expected error for nil context")
 	}
@@ -56,8 +56,8 @@ func TestRunGitCommonRejectsNilCommandContext(t *testing.T) {
 		GitCommonDir: filepath.Join(t.TempDir(), ".git"),
 	}
 
-	var nilCtx context.Context
-	_, _, exitCode, err := RunGitCommon(nilCtx, repoCtx, "rev-parse", "--abbrev-ref", "HEAD")
+	//nolint:staticcheck // intentional nil context for guard test
+	_, _, exitCode, err := RunGitCommon(nil, repoCtx, "rev-parse", "--abbrev-ref", "HEAD")
 	if err == nil {
 		t.Fatalf("RunGitCommon expected error for nil context")
 	}
@@ -117,8 +117,8 @@ func TestFetchOriginRejectsNilCommandContext(t *testing.T) {
 		GitCommonDir: filepath.Join(t.TempDir(), ".git"),
 	}
 
-	var nilCtx context.Context
-	err := FetchOrigin(nilCtx, repoCtx)
+	//nolint:staticcheck // intentional nil context for guard test
+	err := FetchOrigin(nil, repoCtx)
 	if err == nil {
 		t.Fatalf("FetchOrigin expected error for nil context")
 	}

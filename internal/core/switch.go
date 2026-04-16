@@ -1,18 +1,23 @@
 package core
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/gbo-dev/feature-tree/internal/gitx"
 )
 
-func (s *Service) Switch(branch string, createIfMissing bool, baseBranch string) (*SwitchResult, error) {
-	resolvedBranch, err := s.ResolveBranchShortcut(branch)
+func (s *Service) Switch(commandCtx context.Context, branch string, createIfMissing bool, baseBranch string) (*SwitchResult, error) {
+	if commandCtx == nil {
+		return nil, fmt.Errorf("missing command context")
+	}
+
+	resolvedBranch, err := s.ResolveBranchShortcut(commandCtx, branch)
 	if err != nil {
 		return nil, err
 	}
 
-	worktrees, err := gitx.ListWorktrees(s.CommandCtx, s.Ctx)
+	worktrees, err := gitx.ListWorktrees(commandCtx, s.Ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -25,7 +30,7 @@ func (s *Service) Switch(branch string, createIfMissing bool, baseBranch string)
 		return nil, fmt.Errorf("branch %q has no worktree (use ft create %s or ft switch --create %s)", resolvedBranch, resolvedBranch, resolvedBranch)
 	}
 
-	result, err := s.CreateWorktree(resolvedBranch, baseBranch)
+	result, err := s.CreateWorktree(commandCtx, resolvedBranch, baseBranch)
 	if err != nil {
 		return nil, err
 	}
