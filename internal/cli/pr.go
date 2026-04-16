@@ -58,6 +58,12 @@ Examples:
 				return err
 			}
 
+			for _, warning := range result.Warnings {
+				if _, err := fmt.Fprintf(cmd.ErrOrStderr(), "warning: %s\n", warning); err != nil {
+					return fmt.Errorf("write pr output: %w", err)
+				}
+			}
+
 			out := cmd.OutOrStdout()
 			if result.Created {
 				if _, err := fmt.Fprintf(out, "Created worktree: %s -> %s\n", result.Branch, result.Path); err != nil {

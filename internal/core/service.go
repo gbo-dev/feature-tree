@@ -28,10 +28,11 @@ type SwitchResult struct {
 }
 
 type PRResult struct {
-	Number  int
-	Path    string
-	Branch  string
-	Created bool
+	Number   int
+	Path     string
+	Branch   string
+	Created  bool
+	Warnings []string
 }
 
 type RemoveResult struct {
