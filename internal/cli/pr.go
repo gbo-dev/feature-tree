@@ -32,18 +32,18 @@ Examples:
   ft pr 42          # Checkout PR #42`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 1 {
-				return fmt.Errorf("ft: requires exactly one argument: PR number")
+				return fmt.Errorf("requires exactly one argument: PR number")
 			}
 			_, err := strconv.Atoi(args[0])
 			if err != nil {
-				return fmt.Errorf("ft: %q is not a valid PR number", args[0])
+				return fmt.Errorf("%q is not a valid PR number", args[0])
 			}
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			prNum, err := strconv.Atoi(args[0])
 			if err != nil {
-				return fmt.Errorf("ft: %q is not a valid PR number", args[0])
+				return fmt.Errorf("%q is not a valid PR number", args[0])
 			}
 
 			svc, err := core.NewService(cmd.Context())
@@ -51,26 +51,32 @@ Examples:
 				return err
 			}
 
-			result, err := svc.FetchAndCheckoutPRWithOptions(prNum, core.PRCheckoutOptions{
+			result, err := svc.FetchAndCheckoutPRWithOptions(cmd.Context(), prNum, core.PRCheckoutOptions{
 				UsePRRef: usePRRef,
 			})
 			if err != nil {
 				return err
 			}
 
+			for _, warning := range result.Warnings {
+				if _, err := fmt.Fprintf(cmd.ErrOrStderr(), "warning: %s\n", warning); err != nil {
+					return fmt.Errorf("write pr output: %w", err)
+				}
+			}
+
 			out := cmd.OutOrStdout()
 			if result.Created {
 				if _, err := fmt.Fprintf(out, "Created worktree: %s -> %s\n", result.Branch, result.Path); err != nil {
-					return fmt.Errorf("ft: write pr output: %w", err)
+					return fmt.Errorf("write pr output: %w", err)
 				}
 			} else {
 				if _, err := fmt.Fprintf(out, "Already exists: %s (%s)\n", result.Branch, result.Path); err != nil {
-					return fmt.Errorf("ft: write pr output: %w", err)
+					return fmt.Errorf("write pr output: %w", err)
 				}
 			}
 
 			if _, err := fmt.Fprintf(out, "Switched to %s (%s)\n", result.Branch, result.Path); err != nil {
-				return fmt.Errorf("ft: write pr output: %w", err)
+				return fmt.Errorf("write pr output: %w", err)
 			}
 			shell.EmitCDOrWarning(result.Path, cmd.OutOrStdout(), cmd.ErrOrStderr())
 

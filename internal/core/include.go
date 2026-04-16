@@ -2,6 +2,7 @@ package core
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -13,20 +14,24 @@ import (
 	"github.com/gbo-dev/feature-tree/internal/gitx"
 )
 
-func (s *Service) CopyIncludeBetweenBranches(fromBranch string, toBranch string) (err error) {
-	worktrees, err := gitx.ListWorktrees(s.CommandCtx, s.Ctx)
+func (s *Service) CopyIncludeBetweenBranches(commandCtx context.Context, fromBranch string, toBranch string) (err error) {
+	if commandCtx == nil {
+		return fmt.Errorf("missing command context")
+	}
+
+	worktrees, err := gitx.ListWorktrees(commandCtx, s.Ctx)
 	if err != nil {
 		return err
 	}
 
 	sourceWorktreePath := FindWorktreePath(worktrees, fromBranch)
 	if sourceWorktreePath == "" {
-		return fmt.Errorf("ft: no worktree found for branch %q", fromBranch)
+		return fmt.Errorf("no worktree found for branch %q", fromBranch)
 	}
 
 	destinationWorktreePath := FindWorktreePath(worktrees, toBranch)
 	if destinationWorktreePath == "" {
-		return fmt.Errorf("ft: no worktree found for branch %q", toBranch)
+		return fmt.Errorf("no worktree found for branch %q", toBranch)
 	}
 
 	if sourceWorktreePath == destinationWorktreePath {
@@ -39,11 +44,11 @@ func (s *Service) CopyIncludeBetweenBranches(fromBranch string, toBranch string)
 		if errors.Is(err, os.ErrNotExist) {
 			return nil
 		}
-		return fmt.Errorf("ft: read include file %s: %w", includeManifestPath, err)
+		return fmt.Errorf("read include file %s: %w", includeManifestPath, err)
 	}
 	defer func() {
 		if closeErr := includeManifestFile.Close(); closeErr != nil && err == nil {
-			err = fmt.Errorf("ft: close include file %s: %w", includeManifestPath, closeErr)
+			err = fmt.Errorf("close include file %s: %w", includeManifestPath, closeErr)
 		}
 	}()
 
@@ -62,13 +67,13 @@ func (s *Service) CopyIncludeBetweenBranches(fromBranch string, toBranch string)
 
 		matches, err := filepath.Glob(filepath.Join(sourceWorktreePath, pattern))
 		if err != nil {
-			return fmt.Errorf("ft: parse include pattern %q: %w", pattern, err)
+			return fmt.Errorf("parse include pattern %q: %w", pattern, err)
 		}
 
 		for _, match := range matches {
 			rel, err := filepath.Rel(sourceWorktreePath, match)
 			if err != nil {
-				return fmt.Errorf("ft: compute include relative path: %w", err)
+				return fmt.Errorf("compute include relative path: %w", err)
 			}
 			if strings.HasPrefix(rel, "..") {
 				continue
@@ -82,7 +87,7 @@ func (s *Service) CopyIncludeBetweenBranches(fromBranch string, toBranch string)
 	}
 
 	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("ft: read include file %s: %w", includeManifestPath, err)
+		return fmt.Errorf("read include file %s: %w", includeManifestPath, err)
 	}
 
 	return nil
@@ -91,20 +96,20 @@ func (s *Service) CopyIncludeBetweenBranches(fromBranch string, toBranch string)
 func copyPreservingShape(src string, dst string) error {
 	info, err := os.Lstat(src)
 	if err != nil {
-		return fmt.Errorf("ft: inspect include source %s: %w", src, err)
+		return fmt.Errorf("inspect include source %s: %w", src, err)
 	}
 
 	if info.Mode()&os.ModeSymlink != 0 {
 		target, err := os.Readlink(src)
 		if err != nil {
-			return fmt.Errorf("ft: read symlink %s: %w", src, err)
+			return fmt.Errorf("read symlink %s: %w", src, err)
 		}
 		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-			return fmt.Errorf("ft: create include destination parent: %w", err)
+			return fmt.Errorf("create include destination parent: %w", err)
 		}
 		_ = os.Remove(dst)
 		if err := os.Symlink(target, dst); err != nil {
-			return fmt.Errorf("ft: create symlink %s: %w", dst, err)
+			return fmt.Errorf("create symlink %s: %w", dst, err)
 		}
 		return nil
 	}
@@ -147,39 +152,39 @@ func copyPreservingShape(src string, dst string) error {
 func copyFile(src string, dst string) (err error) {
 	in, err := os.Open(src)
 	if err != nil {
-		return fmt.Errorf("ft: open include source file %s: %w", src, err)
+		return fmt.Errorf("open include source file %s: %w", src, err)
 	}
 	defer func() {
 		if closeErr := in.Close(); closeErr != nil && err == nil {
-			err = fmt.Errorf("ft: close include source file %s: %w", src, closeErr)
+			err = fmt.Errorf("close include source file %s: %w", src, closeErr)
 		}
 	}()
 
 	info, err := in.Stat()
 	if err != nil {
-		return fmt.Errorf("ft: stat include source file %s: %w", src, err)
+		return fmt.Errorf("stat include source file %s: %w", src, err)
 	}
 
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-		return fmt.Errorf("ft: create include destination parent: %w", err)
+		return fmt.Errorf("create include destination parent: %w", err)
 	}
 
 	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode().Perm())
 	if err != nil {
-		return fmt.Errorf("ft: open include destination file %s: %w", dst, err)
+		return fmt.Errorf("open include destination file %s: %w", dst, err)
 	}
 	defer func() {
 		if closeErr := out.Close(); closeErr != nil && err == nil {
-			err = fmt.Errorf("ft: close include destination file %s: %w", dst, closeErr)
+			err = fmt.Errorf("close include destination file %s: %w", dst, closeErr)
 		}
 	}()
 
 	if _, err = io.Copy(out, in); err != nil {
-		return fmt.Errorf("ft: copy %s -> %s: %w", src, dst, err)
+		return fmt.Errorf("copy %s -> %s: %w", src, dst, err)
 	}
 
 	if err = out.Sync(); err != nil {
-		return fmt.Errorf("ft: sync include destination file %s: %w", dst, err)
+		return fmt.Errorf("sync include destination file %s: %w", dst, err)
 	}
 
 	return nil

@@ -26,7 +26,7 @@ Source once in your shell config:
   eval "$(ft init zsh)"  # explicit`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 1 {
-				return fmt.Errorf("ft: expected at most one shell argument")
+				return fmt.Errorf("expected at most one shell argument")
 			}
 			return nil
 		},
@@ -42,7 +42,7 @@ Source once in your shell config:
 			}
 
 			if _, err := fmt.Fprint(cmd.OutOrStdout(), script); err != nil {
-				return fmt.Errorf("ft: write init script: %w", err)
+				return fmt.Errorf("write init script: %w", err)
 			}
 			return nil
 		},

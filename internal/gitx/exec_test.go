@@ -10,6 +10,20 @@ import (
 	"github.com/gbo-dev/feature-tree/internal/testutil"
 )
 
+func TestRunGitRejectsNilCommandContext(t *testing.T) {
+	//nolint:staticcheck // intentional nil context for guard test
+	_, _, exitCode, err := RunGit(nil, "", "rev-parse", "--git-dir")
+	if err == nil {
+		t.Fatalf("RunGit expected error for nil context")
+	}
+	if exitCode != -1 {
+		t.Fatalf("RunGit exitCode = %d, want -1 for nil context", exitCode)
+	}
+	if !strings.Contains(err.Error(), "missing command context") {
+		t.Fatalf("RunGit nil-context error = %q, expected missing context message", err.Error())
+	}
+}
+
 func TestRunGitHonorsCanceledCommandContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -33,6 +47,25 @@ func TestCommandErrorUsesFallbackWhenStderrMissing(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "fallback message") {
 		t.Fatalf("CommandError = %q, expected fallback message", err.Error())
+	}
+}
+
+func TestRunGitCommonRejectsNilCommandContext(t *testing.T) {
+	repoCtx := &RepoContext{
+		RepoRoot:     t.TempDir(),
+		GitCommonDir: filepath.Join(t.TempDir(), ".git"),
+	}
+
+	//nolint:staticcheck // intentional nil context for guard test
+	_, _, exitCode, err := RunGitCommon(nil, repoCtx, "rev-parse", "--abbrev-ref", "HEAD")
+	if err == nil {
+		t.Fatalf("RunGitCommon expected error for nil context")
+	}
+	if exitCode != -1 {
+		t.Fatalf("RunGitCommon exitCode = %d, want -1 for nil context", exitCode)
+	}
+	if !strings.Contains(err.Error(), "missing command context") {
+		t.Fatalf("RunGitCommon nil-context error = %q, expected missing context message", err.Error())
 	}
 }
 
@@ -75,6 +108,22 @@ func TestRunGitCommonWorksWhenProcessCWDWasDeleted(t *testing.T) {
 	}
 	if strings.TrimSpace(stdout) != "main" {
 		t.Fatalf("RunGitCommon stdout = %q, want %q", stdout, "main")
+	}
+}
+
+func TestFetchOriginRejectsNilCommandContext(t *testing.T) {
+	repoCtx := &RepoContext{
+		RepoRoot:     t.TempDir(),
+		GitCommonDir: filepath.Join(t.TempDir(), ".git"),
+	}
+
+	//nolint:staticcheck // intentional nil context for guard test
+	err := FetchOrigin(nil, repoCtx)
+	if err == nil {
+		t.Fatalf("FetchOrigin expected error for nil context")
+	}
+	if !strings.Contains(err.Error(), "missing command context") {
+		t.Fatalf("FetchOrigin nil-context error = %q, expected missing context message", err.Error())
 	}
 }
 

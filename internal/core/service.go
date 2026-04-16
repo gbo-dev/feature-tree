@@ -9,8 +9,7 @@ import (
 )
 
 type Service struct {
-	Ctx        *gitx.RepoContext
-	CommandCtx context.Context
+	Ctx *gitx.RepoContext
 }
 
 type CreateResult struct {
@@ -29,10 +28,11 @@ type SwitchResult struct {
 }
 
 type PRResult struct {
-	Number  int
-	Path    string
-	Branch  string
-	Created bool
+	Number   int
+	Path     string
+	Branch   string
+	Created  bool
+	Warnings []string
 }
 
 type RemoveResult struct {
@@ -49,24 +49,29 @@ type RemoveResult struct {
 }
 
 func NewService(commandCtx context.Context) (*Service, error) {
+	if commandCtx == nil {
+		return nil, fmt.Errorf("missing command context")
+	}
+
 	repoCtx, err := gitx.DiscoverRepoContext(commandCtx)
 	if err != nil {
 		return nil, err
 	}
-	if commandCtx == nil {
-		commandCtx = context.Background()
-	}
-	return &Service{Ctx: repoCtx, CommandCtx: commandCtx}, nil
+	return &Service{Ctx: repoCtx}, nil
 }
 
-func (s *Service) ResolveBranchShortcut(input string) (string, error) {
+func (s *Service) ResolveBranchShortcut(commandCtx context.Context, input string) (string, error) {
+	if commandCtx == nil {
+		return "", fmt.Errorf("missing command context")
+	}
+
 	switch input {
 	case "^":
 		return s.Ctx.DefaultBranch, nil
 	case "@":
-		current, err := gitx.CurrentBranch(s.CommandCtx, "")
+		current, err := gitx.CurrentBranch(commandCtx, "")
 		if err != nil {
-			return "", fmt.Errorf("ft: HEAD is detached; @ is unavailable")
+			return "", fmt.Errorf("HEAD is detached; @ is unavailable")
 		}
 		return current, nil
 	default:

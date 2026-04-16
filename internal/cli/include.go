@@ -19,7 +19,7 @@ func newIncludeCmd() *cobra.Command {
 		Short: "Copy include-defined files between worktrees",
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 0 {
-				return fmt.Errorf("ft: unexpected arguments")
+				return fmt.Errorf("unexpected arguments")
 			}
 			return nil
 		},
@@ -33,7 +33,7 @@ func newIncludeCmd() *cobra.Command {
 			if strings.TrimSpace(from) == "" {
 				from = svc.Ctx.DefaultBranch
 			}
-			from, err = svc.ResolveBranchShortcut(from)
+			from, err = svc.ResolveBranchShortcut(cmd.Context(), from)
 			if err != nil {
 				return err
 			}
@@ -42,20 +42,20 @@ func newIncludeCmd() *cobra.Command {
 			if strings.TrimSpace(to) == "" {
 				to, err = gitx.CurrentBranch(cmd.Context(), "")
 				if err != nil {
-					return fmt.Errorf("ft: cannot infer destination branch from detached HEAD")
+					return fmt.Errorf("cannot infer destination branch from detached HEAD")
 				}
 			}
-			to, err = svc.ResolveBranchShortcut(to)
+			to, err = svc.ResolveBranchShortcut(cmd.Context(), to)
 			if err != nil {
 				return err
 			}
 
-			if err := svc.CopyIncludeBetweenBranches(from, to); err != nil {
+			if err := svc.CopyIncludeBetweenBranches(cmd.Context(), from, to); err != nil {
 				return err
 			}
 
 			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "Copied include entries from %s to %s\n", from, to); err != nil {
-				return fmt.Errorf("ft: write copy-include output: %w", err)
+				return fmt.Errorf("write copy-include output: %w", err)
 			}
 			return nil
 		},

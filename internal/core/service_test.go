@@ -9,6 +9,17 @@ import (
 	"github.com/gbo-dev/feature-tree/internal/testutil"
 )
 
+func TestNewServiceRejectsNilContext(t *testing.T) {
+	//nolint:staticcheck // intentional nil context for guard test
+	_, err := NewService(nil)
+	if err == nil {
+		t.Fatalf("NewService expected error for nil context")
+	}
+	if !strings.Contains(err.Error(), "missing command context") {
+		t.Fatalf("NewService nil-context error = %q, expected missing context message", err.Error())
+	}
+}
+
 func TestSanitizeBranchName(t *testing.T) {
 	tests := []struct {
 		in   string
@@ -42,9 +53,9 @@ func TestFindWorktreePath(t *testing.T) {
 }
 
 func TestResolveBranchShortcutDefaultBranch(t *testing.T) {
-	svc := &Service{Ctx: &gitx.RepoContext{DefaultBranch: "main"}, CommandCtx: context.Background()}
+	svc := &Service{Ctx: &gitx.RepoContext{DefaultBranch: "main"}}
 
-	got, err := svc.ResolveBranchShortcut("^")
+	got, err := svc.ResolveBranchShortcut(context.Background(), "^")
 	if err != nil {
 		t.Fatalf("ResolveBranchShortcut(^) returned error: %v", err)
 	}
@@ -58,8 +69,8 @@ func TestResolveBranchShortcutCurrentBranch(t *testing.T) {
 	testutil.InitRepoWithMain(t, repo)
 	testutil.Chdir(t, repo)
 
-	svc := &Service{Ctx: &gitx.RepoContext{DefaultBranch: "main"}, CommandCtx: context.Background()}
-	got, err := svc.ResolveBranchShortcut("@")
+	svc := &Service{Ctx: &gitx.RepoContext{DefaultBranch: "main"}}
+	got, err := svc.ResolveBranchShortcut(context.Background(), "@")
 	if err != nil {
 		t.Fatalf("ResolveBranchShortcut(@) returned error: %v", err)
 	}
@@ -76,8 +87,8 @@ func TestResolveBranchShortcutDetachedHead(t *testing.T) {
 	head := testutil.RunGit(t, repo, "rev-parse", "HEAD")
 	testutil.RunGit(t, repo, "checkout", "--detach", head)
 
-	svc := &Service{Ctx: &gitx.RepoContext{DefaultBranch: "main"}, CommandCtx: context.Background()}
-	_, err := svc.ResolveBranchShortcut("@")
+	svc := &Service{Ctx: &gitx.RepoContext{DefaultBranch: "main"}}
+	_, err := svc.ResolveBranchShortcut(context.Background(), "@")
 	if err == nil {
 		t.Fatalf("ResolveBranchShortcut(@) expected error on detached HEAD")
 	}

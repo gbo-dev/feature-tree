@@ -16,32 +16,36 @@ type RepoContext struct {
 }
 
 func DiscoverRepoContext(commandCtx context.Context) (*RepoContext, error) {
-	commonRaw, stderr, exitCode, runErr := runCommand(normalizeCommandContext(commandCtx), "", "git", "rev-parse", "--git-common-dir")
+	if err := requireCommandContext(commandCtx); err != nil {
+		return nil, err
+	}
+
+	commonRaw, stderr, exitCode, runErr := runCommand(commandCtx, "", "git", "rev-parse", "--git-common-dir")
 	commonRaw, err := ExpectSuccess("discover git common dir", commonRaw, stderr, exitCode, runErr, "not inside a git worktree")
 	if err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(commonRaw) == "" {
-		return nil, fmt.Errorf("ft: discover git common dir: empty output")
+		return nil, fmt.Errorf("discover git common dir: empty output")
 	}
 
 	commonAbs, err := filepath.Abs(commonRaw)
 	if err != nil {
-		return nil, fmt.Errorf("ft: resolve git common dir: %w", err)
+		return nil, fmt.Errorf("resolve git common dir: %w", err)
 	}
 
 	commonAbs, err = filepath.EvalSymlinks(commonAbs)
 	if err != nil {
-		return nil, fmt.Errorf("ft: resolve git common dir symlink: %w", err)
+		return nil, fmt.Errorf("resolve git common dir symlink: %w", err)
 	}
 
 	info, err := os.Stat(commonAbs)
 	if err != nil || !info.IsDir() {
-		return nil, fmt.Errorf("ft: git common dir not found: %s", commonAbs)
+		return nil, fmt.Errorf("git common dir not found: %s", commonAbs)
 	}
 
 	if filepath.Base(commonAbs) != ".git" {
-		return nil, fmt.Errorf("ft: expected .git common dir, found: %s", commonAbs)
+		return nil, fmt.Errorf("expected .git common dir, found: %s", commonAbs)
 	}
 
 	repoRoot := filepath.Dir(commonAbs)
@@ -51,7 +55,7 @@ func DiscoverRepoContext(commandCtx context.Context) (*RepoContext, error) {
 		return nil, err
 	}
 	if strings.TrimSpace(isBare) != "true" {
-		return nil, fmt.Errorf("ft: only bare-in-.git repositories are supported")
+		return nil, fmt.Errorf("only bare-in-.git repositories are supported")
 	}
 
 	defaultBranch, err := detectDefaultBranch(commandCtx, commonAbs)
@@ -69,12 +73,12 @@ func DiscoverRepoContext(commandCtx context.Context) (*RepoContext, error) {
 
 func gitCommon(commandCtx context.Context, gitCommonDir string, args ...string) (string, error) {
 	fullArgs := append([]string{"--git-dir", gitCommonDir}, args...)
-	stdout, stderr, exitCode, err := runCommand(normalizeCommandContext(commandCtx), "", "git", fullArgs...)
+	stdout, stderr, exitCode, err := runCommand(commandCtx, "", "git", fullArgs...)
 	return ExpectSuccess("git command failed", stdout, stderr, exitCode, err, "git command failed")
 }
 
 func detectDefaultBranch(commandCtx context.Context, gitCommonDir string) (string, error) {
-	remoteHead, stderr, exitCode, runErr := runCommand(normalizeCommandContext(commandCtx), "", "git", "--git-dir", gitCommonDir, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD")
+	remoteHead, stderr, exitCode, runErr := runCommand(commandCtx, "", "git", "--git-dir", gitCommonDir, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD")
 	if runErr != nil {
 		return "", CommandError("resolve default branch via origin/HEAD", stderr, exitCode, runErr, "git symbolic-ref failed")
 	}
@@ -87,7 +91,7 @@ func detectDefaultBranch(commandCtx context.Context, gitCommonDir string) (strin
 
 	fallbacks := []string{"main", "master", "trunk"}
 	for _, candidate := range fallbacks {
-		_, stderr, exitCode, runErr := runCommand(normalizeCommandContext(commandCtx), "", "git", "--git-dir", gitCommonDir, "show-ref", "--verify", "--quiet", "refs/heads/"+candidate)
+		_, stderr, exitCode, runErr := runCommand(commandCtx, "", "git", "--git-dir", gitCommonDir, "show-ref", "--verify", "--quiet", "refs/heads/"+candidate)
 		if exitCode == 0 {
 			return candidate, nil
 		}
@@ -99,5 +103,5 @@ func detectDefaultBranch(commandCtx context.Context, gitCommonDir string) (strin
 		}
 	}
 
-	return "", fmt.Errorf("ft: could not determine default branch: origin/HEAD is unset and none of main, master, trunk exist locally; run 'git --git-dir=%s remote set-head origin --auto' and retry", gitCommonDir)
+	return "", fmt.Errorf("could not determine default branch: origin/HEAD is unset and none of main, master, trunk exist locally; run 'git --git-dir=%s remote set-head origin --auto' and retry", gitCommonDir)
 }
