@@ -27,10 +27,10 @@ func EmitCDOrWarning(path string, stdout io.Writer, stderr io.Writer) {
 	}
 
 	hint := PreferredShell()
-	if _, err := fmt.Fprintln(stderr, "ft: shell integration not active, so automatic directory switching is unavailable"); err != nil {
+	if _, err := fmt.Fprintln(stderr, "shell integration not active, so automatic directory switching is unavailable"); err != nil {
 		return
 	}
-	if _, err := fmt.Fprintf(stderr, "ft: run `eval \"$(ft init %s)\"` to enable auto-cd in this shell\n", hint); err != nil {
+	if _, err := fmt.Fprintf(stderr, "run `eval \"$(ft init %s)\"` to enable auto-cd in this shell\n", hint); err != nil {
 		return
 	}
 }
@@ -40,7 +40,7 @@ func InitScript(shellName string) (string, error) {
 	case "zsh", "bash":
 		return "# ft shell integration for " + shellName + "\n" + shellFunctionScript(), nil
 	default:
-		return "", fmt.Errorf("ft: unsupported shell %q (supported: bash, zsh)", shellName)
+		return "", fmt.Errorf("unsupported shell %q (supported: bash, zsh)", shellName)
 	}
 }
 
@@ -49,7 +49,7 @@ func shellFunctionScript() string {
   local tmp_stdout exit_code cd_target line
 
   tmp_stdout="$(mktemp -t ft.stdout.XXXXXX)" || {
-    printf 'ft: failed to create temporary file\n' >&2
+    printf 'failed to create temporary file\n' >&2
     return 1
   }
 

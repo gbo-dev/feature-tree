@@ -24,16 +24,16 @@ func CloneRepo(commandCtx context.Context, url string, dir string) (*CloneResult
 		dir = repoNameFromURL(url)
 	}
 	if dir == "" {
-		return nil, fmt.Errorf("ft: could not infer directory name from URL %q; pass an explicit directory", url)
+		return nil, fmt.Errorf("could not infer directory name from URL %q; pass an explicit directory", url)
 	}
 
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
-		return nil, fmt.Errorf("ft: resolve target directory: %w", err)
+		return nil, fmt.Errorf("resolve target directory: %w", err)
 	}
 
 	if _, err := os.Stat(absDir); err == nil {
-		return nil, fmt.Errorf("ft: target directory already exists: %s", absDir)
+		return nil, fmt.Errorf("target directory already exists: %s", absDir)
 	}
 
 	gitDir := filepath.Join(absDir, ".git")
@@ -68,7 +68,7 @@ func CloneRepo(commandCtx context.Context, url string, dir string) (*CloneResult
 	defaultBranch, err := detectDefaultBranch(commandCtx, gitDir)
 	if err != nil {
 		_ = os.RemoveAll(absDir)
-		return nil, fmt.Errorf("ft: detect default branch: %w", err)
+		return nil, fmt.Errorf("detect default branch: %w", err)
 	}
 
 	// Bare clones also omit branch tracking config needed for git pull in worktrees.

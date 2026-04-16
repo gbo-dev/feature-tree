@@ -22,26 +22,26 @@ func newPickerPreviewCmd() *cobra.Command {
 		Hidden: true,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 1 {
-				return fmt.Errorf("ft: expected preview cache file path")
+				return fmt.Errorf("expected preview cache file path")
 			}
 			if strings.TrimSpace(args[0]) == "" {
-				return fmt.Errorf("ft: preview cache file path is empty")
+				return fmt.Errorf("preview cache file path is empty")
 			}
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			resolved, err := filepath.Abs(args[0])
 			if err != nil {
-				return fmt.Errorf("ft: resolve preview cache file path: %w", err)
+				return fmt.Errorf("resolve preview cache file path: %w", err)
 			}
 
 			data, err := os.ReadFile(resolved)
 			if err != nil {
-				return fmt.Errorf("ft: read preview cache file: %w", err)
+				return fmt.Errorf("read preview cache file: %w", err)
 			}
 
 			if _, err := fmt.Fprint(cmd.OutOrStdout(), string(data)); err != nil {
-				return fmt.Errorf("ft: write preview cache output: %w", err)
+				return fmt.Errorf("write preview cache output: %w", err)
 			}
 			return nil
 		},
@@ -59,7 +59,7 @@ func newPickerPreviewStateCmd() *cobra.Command {
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if strings.TrimSpace(stateFile) == "" {
-				return fmt.Errorf("ft: state file is required")
+				return fmt.Errorf("state file is required")
 			}
 			if step == 0 {
 				return nil
@@ -79,7 +79,7 @@ func newPickerPreviewStateCmd() *cobra.Command {
 			}
 
 			if err := os.WriteFile(stateFile, []byte(strconv.Itoa(next)), 0o600); err != nil {
-				return fmt.Errorf("ft: write preview tab state: %w", err)
+				return fmt.Errorf("write preview tab state: %w", err)
 			}
 			return nil
 		},
@@ -98,10 +98,10 @@ func newPickerPreviewTabCmd() *cobra.Command {
 		Hidden: true,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) != switchPreviewTabCount {
-				return fmt.Errorf("ft: expected %d tab files", switchPreviewTabCount)
+				return fmt.Errorf("expected %d tab files", switchPreviewTabCount)
 			}
 			if strings.TrimSpace(stateFile) == "" {
-				return fmt.Errorf("ft: state file is required")
+				return fmt.Errorf("state file is required")
 			}
 			return nil
 		},
@@ -117,17 +117,17 @@ func newPickerPreviewTabCmd() *cobra.Command {
 			tabFile := args[tab-1]
 			resolved, err := filepath.Abs(tabFile)
 			if err != nil {
-				return fmt.Errorf("ft: resolve preview cache file path: %w", err)
+				return fmt.Errorf("resolve preview cache file path: %w", err)
 			}
 
 			data, err := os.ReadFile(resolved)
 			if err != nil {
-				return fmt.Errorf("ft: read preview cache file: %w", err)
+				return fmt.Errorf("read preview cache file: %w", err)
 			}
 
 			header := renderPreviewHeaderLine(tab)
 			if _, err := fmt.Fprint(cmd.OutOrStdout(), header+"\n"+string(data)); err != nil {
-				return fmt.Errorf("ft: write preview tab output: %w", err)
+				return fmt.Errorf("write preview tab output: %w", err)
 			}
 			return nil
 		},
@@ -140,17 +140,17 @@ func newPickerPreviewTabCmd() *cobra.Command {
 func readPreviewTabState(stateFile string) (int, error) {
 	resolved, err := filepath.Abs(stateFile)
 	if err != nil {
-		return 0, fmt.Errorf("ft: resolve preview state path: %w", err)
+		return 0, fmt.Errorf("resolve preview state path: %w", err)
 	}
 
 	data, err := os.ReadFile(resolved)
 	if err != nil {
-		return 0, fmt.Errorf("ft: read preview tab state: %w", err)
+		return 0, fmt.Errorf("read preview tab state: %w", err)
 	}
 
 	tab, err := strconv.Atoi(strings.TrimSpace(string(data)))
 	if err != nil {
-		return 0, fmt.Errorf("ft: parse preview tab state: %w", err)
+		return 0, fmt.Errorf("parse preview tab state: %w", err)
 	}
 	if tab < 1 || tab > switchPreviewTabCount {
 		tab = 1

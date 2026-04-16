@@ -26,7 +26,7 @@ func newCreateCmd() *cobra.Command {
 		},
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 1 {
-				return fmt.Errorf("ft: unexpected arguments")
+				return fmt.Errorf("unexpected arguments")
 			}
 			return nil
 		},
@@ -41,7 +41,7 @@ func newCreateCmd() *cobra.Command {
 				branch = args[0]
 			} else {
 				if !includeAllBranches {
-					return fmt.Errorf("ft: branch name is required")
+					return fmt.Errorf("branch name is required")
 				}
 
 				entries, err := gitx.ListWorktrees(cmd.Context(), svc.Ctx)
@@ -54,13 +54,13 @@ func newCreateCmd() *cobra.Command {
 					picked, pickErr := tui.PickCreateBranch(cmd.Context(), entries, current, svc.Ctx, includeAllBranches)
 					if pickErr != nil {
 						if errors.Is(pickErr, tui.ErrSelectionCancelled) {
-							return fmt.Errorf("ft: selection cancelled")
+							return fmt.Errorf("selection cancelled")
 						}
 						return pickErr
 					}
 					branch = picked
 				} else {
-					return fmt.Errorf("ft: no branch specified and no interactive TTY available")
+					return fmt.Errorf("no branch specified and no interactive TTY available")
 				}
 			}
 
@@ -72,11 +72,11 @@ func newCreateCmd() *cobra.Command {
 			out := cmd.OutOrStdout()
 			if result.Created {
 				if _, err := fmt.Fprintf(out, "Created worktree: %s -> %s\n", result.Branch, result.Path); err != nil {
-					return fmt.Errorf("ft: write create output: %w", err)
+					return fmt.Errorf("write create output: %w", err)
 				}
 			} else {
 				if _, err := fmt.Fprintf(out, "Already exists: %s (%s)\n", result.Branch, result.Path); err != nil {
-					return fmt.Errorf("ft: write create output: %w", err)
+					return fmt.Errorf("write create output: %w", err)
 				}
 			}
 

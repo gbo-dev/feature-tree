@@ -29,9 +29,9 @@ func newListCmd() *cobra.Command {
 			current, currentErr := gitx.CurrentBranch(cmd.Context(), "")
 			if currentErr != nil {
 				if strings.Contains(strings.ToLower(currentErr.Error()), "detached") {
-					return fmt.Errorf("ft: cannot determine current branch while HEAD is detached; check out a branch and retry")
+					return fmt.Errorf("cannot determine current branch while HEAD is detached; check out a branch and retry")
 				}
-				return fmt.Errorf("ft: resolve current branch for list: %w", currentErr)
+				return fmt.Errorf("resolve current branch for list: %w", currentErr)
 			}
 
 			return tui.PrintWorktreeList(cmd.Context(), entries, current, svc.Ctx, cmd.OutOrStdout())

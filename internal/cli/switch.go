@@ -34,7 +34,7 @@ Interactive picker notes:
 		},
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 1 {
-				return fmt.Errorf("ft: unexpected arguments")
+				return fmt.Errorf("unexpected arguments")
 			}
 			return nil
 		},
@@ -58,13 +58,13 @@ Interactive picker notes:
 					picked, pickErr := tui.PickSwitchBranch(cmd.Context(), entries, current, svc.Ctx)
 					if pickErr != nil {
 						if errors.Is(pickErr, tui.ErrSelectionCancelled) {
-							return fmt.Errorf("ft: selection cancelled")
+							return fmt.Errorf("selection cancelled")
 						}
 						return pickErr
 					}
 					branch = picked
 				} else {
-					return fmt.Errorf("ft: no branch specified and no interactive TTY available")
+					return fmt.Errorf("no branch specified and no interactive TTY available")
 				}
 			}
 
@@ -76,11 +76,11 @@ Interactive picker notes:
 			out := cmd.OutOrStdout()
 			if result.Created {
 				if _, err := fmt.Fprintf(out, "Created worktree: %s -> %s\n", result.Branch, result.Path); err != nil {
-					return fmt.Errorf("ft: write switch output: %w", err)
+					return fmt.Errorf("write switch output: %w", err)
 				}
 			}
 			if _, err := fmt.Fprintf(out, "Switched to %s (%s)\n", result.Branch, result.Path); err != nil {
-				return fmt.Errorf("ft: write switch output: %w", err)
+				return fmt.Errorf("write switch output: %w", err)
 			}
 			shell.EmitCDOrWarning(result.Path, cmd.OutOrStdout(), cmd.ErrOrStderr())
 

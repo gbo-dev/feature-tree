@@ -14,7 +14,7 @@ func newCloneCmd() *cobra.Command {
 		Short: "Clone a repo into a bare-in-.git layout with an initial worktree",
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 || len(args) > 2 {
-				return fmt.Errorf("ft: usage: ft clone <url> [dir]")
+				return fmt.Errorf("usage: ft clone <url> [dir]")
 			}
 			return nil
 		},
@@ -32,16 +32,16 @@ func newCloneCmd() *cobra.Command {
 
 			out := cmd.OutOrStdout()
 			if _, err := fmt.Fprintf(out, "Cloned into %s\n", result.RepoRoot); err != nil {
-				return fmt.Errorf("ft: write clone output: %w", err)
+				return fmt.Errorf("write clone output: %w", err)
 			}
 			if _, err := fmt.Fprintf(out, "Default branch: %s\n", result.DefaultBranch); err != nil {
-				return fmt.Errorf("ft: write clone output: %w", err)
+				return fmt.Errorf("write clone output: %w", err)
 			}
 			if _, err := fmt.Fprintf(out, "Worktree: %s\n", result.WorktreePath); err != nil {
-				return fmt.Errorf("ft: write clone output: %w", err)
+				return fmt.Errorf("write clone output: %w", err)
 			}
 			if _, err := fmt.Fprintf(out, "\ncd %s/%s\n", result.RepoRoot, result.DefaultBranch); err != nil {
-				return fmt.Errorf("ft: write clone output: %w", err)
+				return fmt.Errorf("write clone output: %w", err)
 			}
 			return nil
 		},

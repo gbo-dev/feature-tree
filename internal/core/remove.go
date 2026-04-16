@@ -24,7 +24,7 @@ func (r branchDeletionRelation) safeToDelete() bool {
 
 func (s *Service) RemoveWorktree(branch string, forceWorktree bool, forceBranch bool, noDeleteBranch bool) (*RemoveResult, error) {
 	if noDeleteBranch && forceBranch {
-		return nil, fmt.Errorf("ft: cannot use --force-branch with --no-delete-branch")
+		return nil, fmt.Errorf("cannot use --force-branch with --no-delete-branch")
 	}
 
 	resolvedBranch, err := s.ResolveBranchShortcut(branch)
@@ -45,15 +45,15 @@ func (s *Service) RemoveWorktree(branch string, forceWorktree bool, forceBranch 
 		}
 	}
 	if target == nil {
-		return nil, fmt.Errorf("ft: no worktree found for branch %q", resolvedBranch)
+		return nil, fmt.Errorf("no worktree found for branch %q", resolvedBranch)
 	}
 
 	if resolvedBranch == s.Ctx.DefaultBranch {
-		return nil, fmt.Errorf("ft: refusing to remove default branch worktree %q", s.Ctx.DefaultBranch)
+		return nil, fmt.Errorf("refusing to remove default branch worktree %q", s.Ctx.DefaultBranch)
 	}
 
 	if strings.TrimSpace(target.LockedReason) != "" {
-		return nil, fmt.Errorf("ft: worktree is locked: %s (%s)", target.Path, target.LockedReason)
+		return nil, fmt.Errorf("worktree is locked: %s (%s)", target.Path, target.LockedReason)
 	}
 
 	result := &RemoveResult{
@@ -71,7 +71,7 @@ func (s *Service) RemoveWorktree(branch string, forceWorktree bool, forceBranch 
 			}
 		}
 		if result.FallbackPath == "" {
-			return nil, fmt.Errorf("ft: default branch worktree %q not found", s.Ctx.DefaultBranch)
+			return nil, fmt.Errorf("default branch worktree %q not found", s.Ctx.DefaultBranch)
 		}
 	}
 
@@ -221,7 +221,7 @@ func (s *Service) ensureWorktreeSafeToRemove(path string, branch string, targetR
 		return err
 	}
 	if !clean {
-		return fmt.Errorf("ft: worktree is dirty: %s (commit/stash/remove changes first, or use --force-worktree)", path)
+		return fmt.Errorf("worktree is dirty: %s (commit/stash/remove changes first, or use --force-worktree)", path)
 	}
 
 	upstream, err := worktreeUpstreamRef(s.CommandCtx, path)
@@ -236,7 +236,7 @@ func (s *Service) ensureWorktreeSafeToRemove(path string, branch string, targetR
 		if relation.safeToDelete() {
 			return nil
 		}
-		return fmt.Errorf("ft: branch %q has no upstream tracking branch and differs from %s; push first, or use --force-worktree", branch, targetRef)
+		return fmt.Errorf("branch %q has no upstream tracking branch and differs from %s; push first, or use --force-worktree", branch, targetRef)
 	}
 
 	ahead, stderr, exitCode, runErr := gitx.RunGit(s.CommandCtx, path, "rev-list", "--count", upstream+"..HEAD")
@@ -246,7 +246,7 @@ func (s *Service) ensureWorktreeSafeToRemove(path string, branch string, targetR
 
 	aheadCount, err := strconv.Atoi(strings.TrimSpace(ahead))
 	if err != nil {
-		return fmt.Errorf("ft: failed to compare branch %q to upstream %q", branch, upstream)
+		return fmt.Errorf("failed to compare branch %q to upstream %q", branch, upstream)
 	}
 
 	if aheadCount > 0 {
@@ -257,7 +257,7 @@ func (s *Service) ensureWorktreeSafeToRemove(path string, branch string, targetR
 		if relation.safeToDelete() {
 			return nil
 		}
-		return fmt.Errorf("ft: branch %q has commits not pushed to %s; push first, or use --force-worktree", branch, upstream)
+		return fmt.Errorf("branch %q has commits not pushed to %s; push first, or use --force-worktree", branch, upstream)
 	}
 
 	return nil
@@ -368,7 +368,7 @@ func (s *Service) revListCount(rangeExpr string) (int, error) {
 
 	count, err := strconv.Atoi(strings.TrimSpace(stdout))
 	if err != nil {
-		return 0, fmt.Errorf("ft: failed to parse revision count for %s", rangeExpr)
+		return 0, fmt.Errorf("failed to parse revision count for %s", rangeExpr)
 	}
 	return count, nil
 }

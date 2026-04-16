@@ -66,7 +66,7 @@ func (s *Service) ResolveBranchShortcut(input string) (string, error) {
 	case "@":
 		current, err := gitx.CurrentBranch(s.CommandCtx, "")
 		if err != nil {
-			return "", fmt.Errorf("ft: HEAD is detached; @ is unavailable")
+			return "", fmt.Errorf("HEAD is detached; @ is unavailable")
 		}
 		return current, nil
 	default:
