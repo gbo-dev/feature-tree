@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -400,9 +401,7 @@ func TestPRCommandFetchesAndCreatesWorktree(t *testing.T) {
 	if !strings.Contains(stdout, shell.CDMarkerPrefix) {
 		t.Fatalf("ft pr output missing cd marker, got: %q", stdout)
 	}
-	if strings.TrimSpace(stderr) != "" {
-		t.Fatalf("ft pr stderr = %q, want empty", stderr)
-	}
+	assertPRCachedRefWarning(t, stderr, 123)
 }
 
 func TestPRCommandUsesPRBranchNameWhenAvailable(t *testing.T) {
@@ -425,9 +424,7 @@ func TestPRCommandUsesPRBranchNameWhenAvailable(t *testing.T) {
 	if !strings.Contains(stdout, "Switched to feature-pr-branch") {
 		t.Fatalf("ft pr output missing switched message with branch name, got: %q", stdout)
 	}
-	if strings.TrimSpace(stderr) != "" {
-		t.Fatalf("ft pr stderr = %q, want empty", stderr)
-	}
+	assertPRCachedRefWarning(t, stderr, 321)
 }
 
 func TestPRCommandUsePRRefFlagUsesPullRefName(t *testing.T) {
@@ -450,9 +447,7 @@ func TestPRCommandUsePRRefFlagUsesPullRefName(t *testing.T) {
 	if !strings.Contains(stdout, "Switched to pull/654") {
 		t.Fatalf("ft pr --use-pr-ref output missing switched message with pull ref name, got: %q", stdout)
 	}
-	if strings.TrimSpace(stderr) != "" {
-		t.Fatalf("ft pr --use-pr-ref stderr = %q, want empty", stderr)
-	}
+	assertPRCachedRefWarning(t, stderr, 654)
 }
 
 func TestPRCommandReusesExistingWorktree(t *testing.T) {
@@ -474,9 +469,7 @@ func TestPRCommandReusesExistingWorktree(t *testing.T) {
 	if !strings.Contains(stdout, "Switched to pull/456") {
 		t.Fatalf("ft pr output missing switched message, got: %q", stdout)
 	}
-	if strings.TrimSpace(stderr) != "" {
-		t.Fatalf("ft pr stderr = %q, want empty", stderr)
-	}
+	assertPRCachedRefWarning(t, stderr, 456)
 }
 
 func TestPRCommandInvalidPRNumber(t *testing.T) {
@@ -562,5 +555,14 @@ func assertNoOutputOnError(t *testing.T, stdout string, stderr string) {
 	}
 	if strings.TrimSpace(stderr) != "" {
 		t.Fatalf("stderr should be empty on error, got: %q", stderr)
+	}
+}
+
+func assertPRCachedRefWarning(t *testing.T, stderr string, prNumber int) {
+	t.Helper()
+
+	want := fmt.Sprintf("warning: failed to update PR #%d from origin; using cached ref refs/pull/%d/head", prNumber, prNumber)
+	if !strings.Contains(strings.TrimSpace(stderr), want) {
+		t.Fatalf("stderr = %q, want cached-ref warning %q", stderr, want)
 	}
 }

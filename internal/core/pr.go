@@ -3,7 +3,6 @@ package core
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/gbo-dev/feature-tree/internal/gitx"
@@ -32,8 +31,13 @@ func (s *Service) FetchAndCheckoutPRWithOptions(commandCtx context.Context, prNu
 		return nil, err
 	}
 
-	if err := s.ensureLocalRefUpdated(commandCtx, prInfo); err != nil {
+	warnings := make([]string, 0, 1)
+	warning, err := s.ensureLocalRefUpdated(commandCtx, prInfo)
+	if err != nil {
 		return nil, err
+	}
+	if strings.TrimSpace(warning) != "" {
+		warnings = append(warnings, warning)
 	}
 
 	if options.UsePRRef {
@@ -54,10 +58,11 @@ func (s *Service) FetchAndCheckoutPRWithOptions(commandCtx context.Context, prNu
 		}
 
 		return &PRResult{
-			Number:  prInfo.Number,
-			Path:    existingPath,
-			Branch:  prInfo.HeadRef,
-			Created: false,
+			Number:   prInfo.Number,
+			Path:     existingPath,
+			Branch:   prInfo.HeadRef,
+			Created:  false,
+			Warnings: warnings,
 		}, nil
 	}
 
@@ -75,10 +80,11 @@ func (s *Service) FetchAndCheckoutPRWithOptions(commandCtx context.Context, prNu
 	}
 
 	return &PRResult{
-		Number:  prInfo.Number,
-		Path:    result.Path,
-		Branch:  prInfo.HeadRef,
-		Created: result.Created,
+		Number:   prInfo.Number,
+		Path:     result.Path,
+		Branch:   prInfo.HeadRef,
+		Created:  result.Created,
+		Warnings: warnings,
 	}, nil
 }
 func (s *Service) getPRInfo(commandCtx context.Context, prNumber int, usePRRef bool) (*PRInfo, error) {
@@ -192,7 +198,7 @@ func (s *Service) syncLocalPRBranchToHead(commandCtx context.Context, localBranc
 	return nil
 }
 
-func (s *Service) ensureLocalRefUpdated(commandCtx context.Context, prInfo *PRInfo) error {
+func (s *Service) ensureLocalRefUpdated(commandCtx context.Context, prInfo *PRInfo) (string, error) {
 	ref := fmt.Sprintf("refs/pull/%d/head", prInfo.Number)
 
 	stdout, _, exitCode, runErr := gitx.RunGitCommon(commandCtx, s.Ctx, "rev-parse", "--verify", ref)
@@ -210,20 +216,19 @@ func (s *Service) ensureLocalRefUpdated(commandCtx context.Context, prInfo *PRIn
 	)
 	if err := gitx.CommandError("update PR ref", stderr, exitCode, runErr, "git fetch failed"); err != nil {
 		if currentSHA != "" {
-			_, _ = fmt.Fprintf(os.Stderr, "warning: failed to update PR #%d from origin; using cached ref %s\n", prInfo.Number, ref)
 			prInfo.HeadSHA = currentSHA
-			return nil
+			return fmt.Sprintf("failed to update PR #%d from origin; using cached ref %s", prInfo.Number, ref), nil
 		}
-		return fmt.Errorf("failed to update PR #%d: %w", prInfo.Number, err)
+		return "", fmt.Errorf("failed to update PR #%d: %w", prInfo.Number, err)
 	}
 
 	stdout, stderr, exitCode, runErr = gitx.RunGitCommon(commandCtx, s.Ctx, "rev-parse", "--verify", ref)
 	if err := gitx.CommandError("resolve updated PR commit", stderr, exitCode, runErr, "git rev-parse failed"); err != nil {
-		return fmt.Errorf("failed to resolve PR #%d commit: %w", prInfo.Number, err)
+		return "", fmt.Errorf("failed to resolve PR #%d commit: %w", prInfo.Number, err)
 	}
 	prInfo.HeadSHA = strings.TrimSpace(stdout)
 
-	return nil
+	return "", nil
 }
 
 func (s *Service) resolvePRBranchName(commandCtx context.Context, prNumber int, headSHA string) string {

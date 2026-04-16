@@ -3,7 +3,6 @@ package core
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -422,7 +421,7 @@ func TestEnsureLocalRefUpdatedRefreshesStaleRef(t *testing.T) {
 		t.Fatalf("getPRInfo returned error: %v", err)
 	}
 
-	err = svc.ensureLocalRefUpdated(context.Background(), prInfo)
+	_, err = svc.ensureLocalRefUpdated(context.Background(), prInfo)
 	if err != nil {
 		t.Fatalf("ensureLocalRefUpdated returned error: %v", err)
 	}
@@ -515,16 +514,6 @@ func TestFetchAndCheckoutPRWithCachedRefAndNoOriginWarnsAndUsesCache(t *testing.
 		},
 	}
 
-	originalStderr := os.Stderr
-	r, w, pipeErr := os.Pipe()
-	if pipeErr != nil {
-		t.Fatalf("os.Pipe failed: %v", pipeErr)
-	}
-	os.Stderr = w
-	defer func() {
-		os.Stderr = originalStderr
-	}()
-
 	result, err := svc.FetchAndCheckoutPRWithOptions(context.Background(), 42, PRCheckoutOptions{})
 	if err != nil {
 		t.Fatalf("FetchAndCheckoutPRWithOptions returned error: %v", err)
@@ -533,20 +522,11 @@ func TestFetchAndCheckoutPRWithCachedRefAndNoOriginWarnsAndUsesCache(t *testing.
 		t.Fatalf("FetchAndCheckoutPRWithOptions Branch = %q, want %q", result.Branch, "pull/42")
 	}
 
-	if err := w.Close(); err != nil {
-		t.Fatalf("close write pipe failed: %v", err)
+	if len(result.Warnings) != 1 {
+		t.Fatalf("FetchAndCheckoutPRWithOptions warnings = %v, want exactly one warning", result.Warnings)
 	}
-	warningBytes, readErr := io.ReadAll(r)
-	if readErr != nil {
-		t.Fatalf("read warning output failed: %v", readErr)
-	}
-	if err := r.Close(); err != nil {
-		t.Fatalf("close read pipe failed: %v", err)
-	}
-
-	warningOutput := string(warningBytes)
-	if !strings.Contains(warningOutput, "failed to update PR #42 from origin; using cached ref refs/pull/42/head") {
-		t.Fatalf("warning output = %q, want cached-ref warning", warningOutput)
+	if !strings.Contains(result.Warnings[0], "failed to update PR #42 from origin; using cached ref refs/pull/42/head") {
+		t.Fatalf("warning = %q, want cached-ref warning", result.Warnings[0])
 	}
 }
 
