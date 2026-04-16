@@ -15,7 +15,7 @@ func main() {
 	defer stop()
 
 	if err := cli.ExecuteContext(ctx); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintf(os.Stderr, "ft: error: %v\n", err)
 		os.Exit(1)
 	}
 }
