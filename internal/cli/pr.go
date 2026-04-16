@@ -51,7 +51,7 @@ Examples:
 				return err
 			}
 
-			result, err := svc.FetchAndCheckoutPRWithOptions(prNum, core.PRCheckoutOptions{
+			result, err := svc.FetchAndCheckoutPRWithOptions(cmd.Context(), prNum, core.PRCheckoutOptions{
 				UsePRRef: usePRRef,
 			})
 			if err != nil {

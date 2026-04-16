@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -22,30 +23,33 @@ type PRCheckoutOptions struct {
 	UsePRRef bool
 }
 
-func (s *Service) FetchAndCheckoutPRWithOptions(prNumber int, options PRCheckoutOptions) (*PRResult, error) {
-	prInfo, err := s.getPRInfo(prNumber, options.UsePRRef)
+func (s *Service) FetchAndCheckoutPRWithOptions(commandCtx context.Context, prNumber int, options PRCheckoutOptions) (*PRResult, error) {
+	if commandCtx == nil {
+		return nil, fmt.Errorf("missing command context")
+	}
+	prInfo, err := s.getPRInfo(commandCtx, prNumber, options.UsePRRef)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := s.ensureLocalRefUpdated(prInfo); err != nil {
+	if err := s.ensureLocalRefUpdated(commandCtx, prInfo); err != nil {
 		return nil, err
 	}
 
 	if options.UsePRRef {
 		prInfo.HeadRef = fmt.Sprintf("pull/%d", prNumber)
 	} else {
-		prInfo.HeadRef = s.resolvePRBranchName(prNumber, prInfo.HeadSHA)
+		prInfo.HeadRef = s.resolvePRBranchName(commandCtx, prNumber, prInfo.HeadSHA)
 	}
-	prInfo.HeadRemote = s.findBranchNameBySHA("refs/remotes/origin", prInfo.HeadSHA, true)
+	prInfo.HeadRemote = s.findBranchNameBySHA(commandCtx, "refs/remotes/origin", prInfo.HeadSHA, true)
 
-	worktrees, err := gitx.ListWorktrees(s.CommandCtx, s.Ctx)
+	worktrees, err := gitx.ListWorktrees(commandCtx, s.Ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	if existingPath := FindWorktreePath(worktrees, prInfo.HeadRef); existingPath != "" {
-		if err := s.ensurePRBranchTracking(prInfo.HeadRef, prInfo.HeadRemote); err != nil {
+		if err := s.ensurePRBranchTracking(commandCtx, prInfo.HeadRef, prInfo.HeadRemote); err != nil {
 			return nil, err
 		}
 
@@ -57,16 +61,16 @@ func (s *Service) FetchAndCheckoutPRWithOptions(prNumber int, options PRCheckout
 		}, nil
 	}
 
-	if err := s.syncLocalPRBranchToHead(prInfo.HeadRef, prInfo.HeadSHA); err != nil {
+	if err := s.syncLocalPRBranchToHead(commandCtx, prInfo.HeadRef, prInfo.HeadSHA); err != nil {
 		return nil, err
 	}
 
-	result, err := s.CreateWorktree(prInfo.HeadRef, prInfo.BaseBranch)
+	result, err := s.CreateWorktree(commandCtx, prInfo.HeadRef, prInfo.BaseBranch)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := s.ensurePRBranchTracking(prInfo.HeadRef, prInfo.HeadRemote); err != nil {
+	if err := s.ensurePRBranchTracking(commandCtx, prInfo.HeadRef, prInfo.HeadRemote); err != nil {
 		return nil, err
 	}
 
@@ -77,7 +81,7 @@ func (s *Service) FetchAndCheckoutPRWithOptions(prNumber int, options PRCheckout
 		Created: result.Created,
 	}, nil
 }
-func (s *Service) getPRInfo(prNumber int, usePRRef bool) (*PRInfo, error) {
+func (s *Service) getPRInfo(commandCtx context.Context, prNumber int, usePRRef bool) (*PRInfo, error) {
 	refsToTry := []string{
 		fmt.Sprintf("refs/pull/%d/head", prNumber),
 		fmt.Sprintf("refs/pull/%d/merge", prNumber),
@@ -87,7 +91,7 @@ func (s *Service) getPRInfo(prNumber int, usePRRef bool) (*PRInfo, error) {
 	var headSHA string
 
 	for _, ref := range refsToTry {
-		stdout, _, exitCode, runErr := gitx.RunGitCommon(s.CommandCtx, s.Ctx, "rev-parse", "--verify", ref)
+		stdout, _, exitCode, runErr := gitx.RunGitCommon(commandCtx, s.Ctx, "rev-parse", "--verify", ref)
 		if runErr == nil && exitCode == 0 {
 			headSHA = strings.TrimSpace(stdout)
 			break
@@ -95,12 +99,12 @@ func (s *Service) getPRInfo(prNumber int, usePRRef bool) (*PRInfo, error) {
 	}
 
 	if headSHA == "" {
-		_, stderr, exitCode, runErr := gitx.RunGitCommon(s.CommandCtx, s.Ctx, "fetch", "origin", fmt.Sprintf("pull/%d/head:refs/pull/%d/head", prNumber, prNumber))
+		_, stderr, exitCode, runErr := gitx.RunGitCommon(commandCtx, s.Ctx, "fetch", "origin", fmt.Sprintf("pull/%d/head:refs/pull/%d/head", prNumber, prNumber))
 		if err := gitx.CommandError("fetch PR ref", stderr, exitCode, runErr, "git fetch failed"); err != nil {
 			return nil, fmt.Errorf("failed to fetch PR #%d: %w", prNumber, err)
 		}
 
-		stdout, stderr, exitCode, runErr := gitx.RunGitCommon(s.CommandCtx, s.Ctx, "rev-parse", "--verify", fmt.Sprintf("refs/pull/%d/head", prNumber))
+		stdout, stderr, exitCode, runErr := gitx.RunGitCommon(commandCtx, s.Ctx, "rev-parse", "--verify", fmt.Sprintf("refs/pull/%d/head", prNumber))
 		if err := gitx.CommandError("resolve PR commit", stderr, exitCode, runErr, "git rev-parse failed"); err != nil {
 			return nil, fmt.Errorf("failed to resolve PR #%d commit: %w", prNumber, err)
 		}
@@ -110,12 +114,12 @@ func (s *Service) getPRInfo(prNumber int, usePRRef bool) (*PRInfo, error) {
 	if usePRRef {
 		headRef = fmt.Sprintf("pull/%d", prNumber)
 	} else {
-		headRef = s.resolvePRBranchName(prNumber, headSHA)
+		headRef = s.resolvePRBranchName(commandCtx, prNumber, headSHA)
 	}
 
-	headRemote := s.findBranchNameBySHA("refs/remotes/origin", headSHA, true)
+	headRemote := s.findBranchNameBySHA(commandCtx, "refs/remotes/origin", headSHA, true)
 
-	stdout, _, _, runErr := gitx.RunGitCommon(s.CommandCtx, s.Ctx, "log", "--oneline", "-1", headSHA)
+	stdout, _, _, runErr := gitx.RunGitCommon(commandCtx, s.Ctx, "log", "--oneline", "-1", headSHA)
 	title := strings.TrimSpace(stdout)
 	if runErr != nil {
 		title = fmt.Sprintf("PR #%d", prNumber)
@@ -130,7 +134,7 @@ func (s *Service) getPRInfo(prNumber int, usePRRef bool) (*PRInfo, error) {
 	}
 
 	for _, ref := range baseRefsToTry {
-		stdout, _, exitCode, runErr := gitx.RunGitCommon(s.CommandCtx, s.Ctx, "rev-parse", "--verify", ref)
+		stdout, _, exitCode, runErr := gitx.RunGitCommon(commandCtx, s.Ctx, "rev-parse", "--verify", ref)
 		if runErr == nil && exitCode == 0 {
 			baseSHA = strings.TrimSpace(stdout)
 			break
@@ -148,7 +152,7 @@ func (s *Service) getPRInfo(prNumber int, usePRRef bool) (*PRInfo, error) {
 	}, nil
 }
 
-func (s *Service) ensurePRBranchTracking(localBranch string, remoteBranch string) error {
+func (s *Service) ensurePRBranchTracking(commandCtx context.Context, localBranch string, remoteBranch string) error {
 	localBranch = strings.TrimSpace(localBranch)
 	remoteBranch = strings.TrimSpace(remoteBranch)
 
@@ -156,7 +160,7 @@ func (s *Service) ensurePRBranchTracking(localBranch string, remoteBranch string
 		return nil
 	}
 
-	_, stderr, exitCode, runErr := gitx.RunGitCommon(s.CommandCtx, s.Ctx, "show-ref", "--verify", "--quiet", "refs/remotes/origin/"+remoteBranch)
+	_, stderr, exitCode, runErr := gitx.RunGitCommon(commandCtx, s.Ctx, "show-ref", "--verify", "--quiet", "refs/remotes/origin/"+remoteBranch)
 	if exitCode == 1 && runErr == nil {
 		return nil
 	}
@@ -164,7 +168,7 @@ func (s *Service) ensurePRBranchTracking(localBranch string, remoteBranch string
 		return err
 	}
 
-	_, stderr, exitCode, runErr = gitx.RunGitCommon(s.CommandCtx, s.Ctx, "branch", "--set-upstream-to", "origin/"+remoteBranch, localBranch)
+	_, stderr, exitCode, runErr = gitx.RunGitCommon(commandCtx, s.Ctx, "branch", "--set-upstream-to", "origin/"+remoteBranch, localBranch)
 	if err := gitx.CommandError(fmt.Sprintf("set upstream for branch %q", localBranch), stderr, exitCode, runErr, "git branch failed"); err != nil {
 		return err
 	}
@@ -172,7 +176,7 @@ func (s *Service) ensurePRBranchTracking(localBranch string, remoteBranch string
 	return nil
 }
 
-func (s *Service) syncLocalPRBranchToHead(localBranch string, headSHA string) error {
+func (s *Service) syncLocalPRBranchToHead(commandCtx context.Context, localBranch string, headSHA string) error {
 	localBranch = strings.TrimSpace(localBranch)
 	headSHA = strings.TrimSpace(headSHA)
 
@@ -180,7 +184,7 @@ func (s *Service) syncLocalPRBranchToHead(localBranch string, headSHA string) er
 		return nil
 	}
 
-	_, stderr, exitCode, runErr := gitx.RunGitCommon(s.CommandCtx, s.Ctx, "update-ref", "refs/heads/"+localBranch, headSHA)
+	_, stderr, exitCode, runErr := gitx.RunGitCommon(commandCtx, s.Ctx, "update-ref", "refs/heads/"+localBranch, headSHA)
 	if err := gitx.CommandError(fmt.Sprintf("move branch %q to PR head", localBranch), stderr, exitCode, runErr, "git update-ref failed"); err != nil {
 		return err
 	}
@@ -188,17 +192,17 @@ func (s *Service) syncLocalPRBranchToHead(localBranch string, headSHA string) er
 	return nil
 }
 
-func (s *Service) ensureLocalRefUpdated(prInfo *PRInfo) error {
+func (s *Service) ensureLocalRefUpdated(commandCtx context.Context, prInfo *PRInfo) error {
 	ref := fmt.Sprintf("refs/pull/%d/head", prInfo.Number)
 
-	stdout, _, exitCode, runErr := gitx.RunGitCommon(s.CommandCtx, s.Ctx, "rev-parse", "--verify", ref)
+	stdout, _, exitCode, runErr := gitx.RunGitCommon(commandCtx, s.Ctx, "rev-parse", "--verify", ref)
 	currentSHA := ""
 	if runErr == nil && exitCode == 0 {
 		currentSHA = strings.TrimSpace(stdout)
 	}
 
 	_, stderr, exitCode, runErr := gitx.RunGitCommon(
-		s.CommandCtx,
+		commandCtx,
 		s.Ctx,
 		"fetch",
 		"origin",
@@ -213,7 +217,7 @@ func (s *Service) ensureLocalRefUpdated(prInfo *PRInfo) error {
 		return fmt.Errorf("failed to update PR #%d: %w", prInfo.Number, err)
 	}
 
-	stdout, stderr, exitCode, runErr = gitx.RunGitCommon(s.CommandCtx, s.Ctx, "rev-parse", "--verify", ref)
+	stdout, stderr, exitCode, runErr = gitx.RunGitCommon(commandCtx, s.Ctx, "rev-parse", "--verify", ref)
 	if err := gitx.CommandError("resolve updated PR commit", stderr, exitCode, runErr, "git rev-parse failed"); err != nil {
 		return fmt.Errorf("failed to resolve PR #%d commit: %w", prInfo.Number, err)
 	}
@@ -222,19 +226,19 @@ func (s *Service) ensureLocalRefUpdated(prInfo *PRInfo) error {
 	return nil
 }
 
-func (s *Service) resolvePRBranchName(prNumber int, headSHA string) string {
-	if branch := s.findBranchNameBySHA("refs/heads", headSHA, false); branch != "" {
+func (s *Service) resolvePRBranchName(commandCtx context.Context, prNumber int, headSHA string) string {
+	if branch := s.findBranchNameBySHA(commandCtx, "refs/heads", headSHA, false); branch != "" {
 		return branch
 	}
-	if branch := s.findBranchNameBySHA("refs/remotes/origin", headSHA, true); branch != "" {
+	if branch := s.findBranchNameBySHA(commandCtx, "refs/remotes/origin", headSHA, true); branch != "" {
 		return branch
 	}
 	return fmt.Sprintf("pull/%d", prNumber)
 }
 
-func (s *Service) findBranchNameBySHA(refNamespace string, headSHA string, stripOriginPrefix bool) string {
+func (s *Service) findBranchNameBySHA(commandCtx context.Context, refNamespace string, headSHA string, stripOriginPrefix bool) string {
 	stdout, _, exitCode, runErr := gitx.RunGitCommon(
-		s.CommandCtx,
+		commandCtx,
 		s.Ctx,
 		"for-each-ref",
 		"--format=%(refname:short)",

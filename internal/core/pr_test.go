@@ -50,10 +50,9 @@ func TestGetPRInfoFetchesFromOrigin(t *testing.T) {
 			DefaultBranch: cloneResult.DefaultBranch,
 			IncludeFile:   ".worktreeinclude",
 		},
-		CommandCtx: context.Background(),
 	}
 
-	prInfo, err := svc.getPRInfo(42, false)
+	prInfo, err := svc.getPRInfo(context.Background(), 42, false)
 	if err != nil {
 		t.Fatalf("getPRInfo returned error: %v", err)
 	}
@@ -110,10 +109,9 @@ func TestFetchAndCheckoutPRCreatesWorktree(t *testing.T) {
 			DefaultBranch: cloneResult.DefaultBranch,
 			IncludeFile:   ".worktreeinclude",
 		},
-		CommandCtx: context.Background(),
 	}
 
-	result, err := svc.FetchAndCheckoutPRWithOptions(99, PRCheckoutOptions{})
+	result, err := svc.FetchAndCheckoutPRWithOptions(context.Background(), 99, PRCheckoutOptions{})
 	if err != nil {
 		t.Fatalf("FetchAndCheckoutPRWithOptions returned error: %v", err)
 	}
@@ -170,10 +168,9 @@ func TestFetchAndCheckoutPRWithOptionsUsesPRRef(t *testing.T) {
 			DefaultBranch: cloneResult.DefaultBranch,
 			IncludeFile:   ".worktreeinclude",
 		},
-		CommandCtx: context.Background(),
 	}
 
-	result, err := svc.FetchAndCheckoutPRWithOptions(101, PRCheckoutOptions{UsePRRef: true})
+	result, err := svc.FetchAndCheckoutPRWithOptions(context.Background(), 101, PRCheckoutOptions{UsePRRef: true})
 	if err != nil {
 		t.Fatalf("FetchAndCheckoutPRWithOptions returned error: %v", err)
 	}
@@ -226,10 +223,9 @@ func TestFetchAndCheckoutPRSetsTrackingToRemoteHeadBranch(t *testing.T) {
 			DefaultBranch: cloneResult.DefaultBranch,
 			IncludeFile:   ".worktreeinclude",
 		},
-		CommandCtx: context.Background(),
 	}
 
-	result, err := svc.FetchAndCheckoutPRWithOptions(202, PRCheckoutOptions{})
+	result, err := svc.FetchAndCheckoutPRWithOptions(context.Background(), 202, PRCheckoutOptions{})
 	if err != nil {
 		t.Fatalf("FetchAndCheckoutPRWithOptions returned error: %v", err)
 	}
@@ -282,10 +278,9 @@ func TestFetchAndCheckoutPRWithOptionsUsePRRefSetsTrackingToRemoteHeadBranch(t *
 			DefaultBranch: cloneResult.DefaultBranch,
 			IncludeFile:   ".worktreeinclude",
 		},
-		CommandCtx: context.Background(),
 	}
 
-	result, err := svc.FetchAndCheckoutPRWithOptions(303, PRCheckoutOptions{UsePRRef: true})
+	result, err := svc.FetchAndCheckoutPRWithOptions(context.Background(), 303, PRCheckoutOptions{UsePRRef: true})
 	if err != nil {
 		t.Fatalf("FetchAndCheckoutPRWithOptions returned error: %v", err)
 	}
@@ -331,10 +326,9 @@ func TestFetchAndCheckoutPRReusesExistingWorktree(t *testing.T) {
 			DefaultBranch: cloneResult.DefaultBranch,
 			IncludeFile:   ".worktreeinclude",
 		},
-		CommandCtx: context.Background(),
 	}
 
-	result, err := svc.FetchAndCheckoutPRWithOptions(77, PRCheckoutOptions{})
+	result, err := svc.FetchAndCheckoutPRWithOptions(context.Background(), 77, PRCheckoutOptions{})
 	if err != nil {
 		t.Fatalf("FetchAndCheckoutPRWithOptions returned error: %v", err)
 	}
@@ -376,10 +370,9 @@ func TestGetPRInfoHandlesNonexistentPR(t *testing.T) {
 			DefaultBranch: cloneResult.DefaultBranch,
 			IncludeFile:   ".worktreeinclude",
 		},
-		CommandCtx: context.Background(),
 	}
 
-	_, err = svc.getPRInfo(999999, false)
+	_, err = svc.getPRInfo(context.Background(), 999999, false)
 	if err == nil {
 		t.Fatalf("getPRInfo expected error for nonexistent PR, got nil")
 	}
@@ -422,15 +415,14 @@ func TestEnsureLocalRefUpdatedRefreshesStaleRef(t *testing.T) {
 			DefaultBranch: cloneResult.DefaultBranch,
 			IncludeFile:   ".worktreeinclude",
 		},
-		CommandCtx: context.Background(),
 	}
 
-	prInfo, err := svc.getPRInfo(55, false)
+	prInfo, err := svc.getPRInfo(context.Background(), 55, false)
 	if err != nil {
 		t.Fatalf("getPRInfo returned error: %v", err)
 	}
 
-	err = svc.ensureLocalRefUpdated(prInfo)
+	err = svc.ensureLocalRefUpdated(context.Background(), prInfo)
 	if err != nil {
 		t.Fatalf("ensureLocalRefUpdated returned error: %v", err)
 	}
@@ -481,10 +473,9 @@ func TestFetchAndCheckoutPRRefreshesStaleLocalPRRefBeforeResolvingBranchName(t *
 			DefaultBranch: cloneResult.DefaultBranch,
 			IncludeFile:   ".worktreeinclude",
 		},
-		CommandCtx: context.Background(),
 	}
 
-	result, err := svc.FetchAndCheckoutPRWithOptions(prNumber, PRCheckoutOptions{})
+	result, err := svc.FetchAndCheckoutPRWithOptions(context.Background(), prNumber, PRCheckoutOptions{})
 	if err != nil {
 		t.Fatalf("FetchAndCheckoutPRWithOptions returned error: %v", err)
 	}
@@ -522,7 +513,6 @@ func TestFetchAndCheckoutPRWithCachedRefAndNoOriginWarnsAndUsesCache(t *testing.
 			DefaultBranch: cloneResult.DefaultBranch,
 			IncludeFile:   ".worktreeinclude",
 		},
-		CommandCtx: context.Background(),
 	}
 
 	originalStderr := os.Stderr
@@ -535,7 +525,7 @@ func TestFetchAndCheckoutPRWithCachedRefAndNoOriginWarnsAndUsesCache(t *testing.
 		os.Stderr = originalStderr
 	}()
 
-	result, err := svc.FetchAndCheckoutPRWithOptions(42, PRCheckoutOptions{})
+	result, err := svc.FetchAndCheckoutPRWithOptions(context.Background(), 42, PRCheckoutOptions{})
 	if err != nil {
 		t.Fatalf("FetchAndCheckoutPRWithOptions returned error: %v", err)
 	}
@@ -583,10 +573,9 @@ func TestFetchAndCheckoutPRNoOriginFails(t *testing.T) {
 			DefaultBranch: cloneResult.DefaultBranch,
 			IncludeFile:   ".worktreeinclude",
 		},
-		CommandCtx: context.Background(),
 	}
 
-	_, err = svc.FetchAndCheckoutPRWithOptions(42, PRCheckoutOptions{})
+	_, err = svc.FetchAndCheckoutPRWithOptions(context.Background(), 42, PRCheckoutOptions{})
 	if err == nil {
 		t.Fatalf("FetchAndCheckoutPRWithOptions expected error without origin, got nil")
 	}

@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -10,7 +11,10 @@ import (
 	"github.com/gbo-dev/feature-tree/internal/gitx"
 )
 
-func (s *Service) CreateWorktree(branch string, baseBranch string) (*CreateResult, error) {
+func (s *Service) CreateWorktree(commandCtx context.Context, branch string, baseBranch string) (*CreateResult, error) {
+	if commandCtx == nil {
+		return nil, fmt.Errorf("missing command context")
+	}
 	if strings.TrimSpace(branch) == "" {
 		return nil, fmt.Errorf("branch name is required")
 	}
@@ -18,12 +22,12 @@ func (s *Service) CreateWorktree(branch string, baseBranch string) (*CreateResul
 		baseBranch = s.Ctx.DefaultBranch
 	}
 
-	resolvedBaseBranch, err := s.ResolveBranchShortcut(baseBranch)
+	resolvedBaseBranch, err := s.ResolveBranchShortcut(commandCtx, baseBranch)
 	if err != nil {
 		return nil, err
 	}
 
-	worktrees, err := gitx.ListWorktrees(s.CommandCtx, s.Ctx)
+	worktrees, err := gitx.ListWorktrees(commandCtx, s.Ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -47,18 +51,18 @@ func (s *Service) CreateWorktree(branch string, baseBranch string) (*CreateResul
 		return nil, fmt.Errorf("inspect target path: %w", err)
 	}
 
-	branchExists, err := gitx.BranchExistsLocal(s.CommandCtx, s.Ctx, branch)
+	branchExists, err := gitx.BranchExistsLocal(commandCtx, s.Ctx, branch)
 	if err != nil {
 		return nil, err
 	}
 
 	if branchExists {
-		_, stderr, exitCode, runErr := gitx.RunGitCommon(s.CommandCtx, s.Ctx, "worktree", "add", worktreePath, branch)
+		_, stderr, exitCode, runErr := gitx.RunGitCommon(commandCtx, s.Ctx, "worktree", "add", worktreePath, branch)
 		if err := gitx.CommandError("create worktree", stderr, exitCode, runErr, "git worktree add failed"); err != nil {
 			return nil, err
 		}
 	} else {
-		baseExists, err := gitx.BranchExistsLocal(s.CommandCtx, s.Ctx, resolvedBaseBranch)
+		baseExists, err := gitx.BranchExistsLocal(commandCtx, s.Ctx, resolvedBaseBranch)
 		if err != nil {
 			return nil, err
 		}
@@ -66,14 +70,14 @@ func (s *Service) CreateWorktree(branch string, baseBranch string) (*CreateResul
 			return nil, fmt.Errorf("base branch not found locally: %s", resolvedBaseBranch)
 		}
 
-		_, stderr, exitCode, runErr := gitx.RunGitCommon(s.CommandCtx, s.Ctx, "worktree", "add", "-b", branch, worktreePath, resolvedBaseBranch)
+		_, stderr, exitCode, runErr := gitx.RunGitCommon(commandCtx, s.Ctx, "worktree", "add", "-b", branch, worktreePath, resolvedBaseBranch)
 		if err := gitx.CommandError("create worktree", stderr, exitCode, runErr, "git worktree add failed"); err != nil {
 			return nil, err
 		}
 	}
 
 	if branch != s.Ctx.DefaultBranch {
-		if err := s.CopyIncludeBetweenBranches(s.Ctx.DefaultBranch, branch); err != nil {
+		if err := s.CopyIncludeBetweenBranches(commandCtx, s.Ctx.DefaultBranch, branch); err != nil {
 			return nil, err
 		}
 	}

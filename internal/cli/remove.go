@@ -68,7 +68,7 @@ func newRemoveCmd() *cobra.Command {
 				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "could not fetch from origin (%s); using cached refs\n", fetchErr)
 			}
 
-			result, err := svc.RemoveWorktree(branch, forceWorktree, forceBranch, noDeleteBranch)
+			result, err := svc.RemoveWorktree(cmd.Context(), branch, forceWorktree, forceBranch, noDeleteBranch)
 			if err != nil {
 				return err
 			}

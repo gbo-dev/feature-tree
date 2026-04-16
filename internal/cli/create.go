@@ -64,7 +64,7 @@ func newCreateCmd() *cobra.Command {
 				}
 			}
 
-			result, err := svc.CreateWorktree(branch, baseBranch)
+			result, err := svc.CreateWorktree(cmd.Context(), branch, baseBranch)
 			if err != nil {
 				return err
 			}

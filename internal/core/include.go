@@ -2,6 +2,7 @@ package core
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -13,8 +14,12 @@ import (
 	"github.com/gbo-dev/feature-tree/internal/gitx"
 )
 
-func (s *Service) CopyIncludeBetweenBranches(fromBranch string, toBranch string) (err error) {
-	worktrees, err := gitx.ListWorktrees(s.CommandCtx, s.Ctx)
+func (s *Service) CopyIncludeBetweenBranches(commandCtx context.Context, fromBranch string, toBranch string) (err error) {
+	if commandCtx == nil {
+		return fmt.Errorf("missing command context")
+	}
+
+	worktrees, err := gitx.ListWorktrees(commandCtx, s.Ctx)
 	if err != nil {
 		return err
 	}

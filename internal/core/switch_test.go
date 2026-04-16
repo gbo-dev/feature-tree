@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"os"
 	"testing"
 
@@ -10,7 +11,7 @@ import (
 func TestSwitchReturnsExistingWorktreePath(t *testing.T) {
 	svc, featurePath, featureBranch := setupServiceWithFeatureWorktree(t)
 
-	result, err := svc.Switch(featureBranch, false, "")
+	result, err := svc.Switch(context.Background(), featureBranch, false, "")
 	if err != nil {
 		t.Fatalf("Switch returned error: %v", err)
 	}
@@ -30,7 +31,7 @@ func TestSwitchReturnsExistingWorktreePath(t *testing.T) {
 func TestSwitchWithCreateCreatesMissingWorktree(t *testing.T) {
 	svc, _, _ := setupServiceWithFeatureWorktree(t)
 
-	result, err := svc.Switch("feature-switch-create", true, "")
+	result, err := svc.Switch(context.Background(), "feature-switch-create", true, "")
 	if err != nil {
 		t.Fatalf("Switch returned error: %v", err)
 	}
@@ -45,7 +46,7 @@ func TestSwitchWithCreateCreatesMissingWorktree(t *testing.T) {
 func TestSwitchWithoutCreateFailsForMissingWorktree(t *testing.T) {
 	svc, _, _ := setupServiceWithFeatureWorktree(t)
 
-	_, err := svc.Switch("feature-missing", false, "")
+	_, err := svc.Switch(context.Background(), "feature-missing", false, "")
 	if err == nil {
 		t.Fatalf("Switch expected error when worktree is missing and --create is disabled")
 	}

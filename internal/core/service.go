@@ -9,8 +9,7 @@ import (
 )
 
 type Service struct {
-	Ctx        *gitx.RepoContext
-	CommandCtx context.Context
+	Ctx *gitx.RepoContext
 }
 
 type CreateResult struct {
@@ -57,15 +56,19 @@ func NewService(commandCtx context.Context) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Service{Ctx: repoCtx, CommandCtx: commandCtx}, nil
+	return &Service{Ctx: repoCtx}, nil
 }
 
-func (s *Service) ResolveBranchShortcut(input string) (string, error) {
+func (s *Service) ResolveBranchShortcut(commandCtx context.Context, input string) (string, error) {
+	if commandCtx == nil {
+		return "", fmt.Errorf("missing command context")
+	}
+
 	switch input {
 	case "^":
 		return s.Ctx.DefaultBranch, nil
 	case "@":
-		current, err := gitx.CurrentBranch(s.CommandCtx, "")
+		current, err := gitx.CurrentBranch(commandCtx, "")
 		if err != nil {
 			return "", fmt.Errorf("HEAD is detached; @ is unavailable")
 		}

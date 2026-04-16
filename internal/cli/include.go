@@ -33,7 +33,7 @@ func newIncludeCmd() *cobra.Command {
 			if strings.TrimSpace(from) == "" {
 				from = svc.Ctx.DefaultBranch
 			}
-			from, err = svc.ResolveBranchShortcut(from)
+			from, err = svc.ResolveBranchShortcut(cmd.Context(), from)
 			if err != nil {
 				return err
 			}
@@ -45,12 +45,12 @@ func newIncludeCmd() *cobra.Command {
 					return fmt.Errorf("cannot infer destination branch from detached HEAD")
 				}
 			}
-			to, err = svc.ResolveBranchShortcut(to)
+			to, err = svc.ResolveBranchShortcut(cmd.Context(), to)
 			if err != nil {
 				return err
 			}
 
-			if err := svc.CopyIncludeBetweenBranches(from, to); err != nil {
+			if err := svc.CopyIncludeBetweenBranches(cmd.Context(), from, to); err != nil {
 				return err
 			}
 

@@ -68,7 +68,7 @@ Interactive picker notes:
 				}
 			}
 
-			result, err := svc.Switch(branch, createIfMissing, baseBranch)
+			result, err := svc.Switch(cmd.Context(), branch, createIfMissing, baseBranch)
 			if err != nil {
 				return err
 			}

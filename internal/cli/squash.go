@@ -33,7 +33,7 @@ func newSquashCmd() *cobra.Command {
 			if strings.TrimSpace(base) == "" {
 				base = svc.Ctx.DefaultBranch
 			}
-			base, err = svc.ResolveBranchShortcut(base)
+			base, err = svc.ResolveBranchShortcut(cmd.Context(), base)
 			if err != nil {
 				return err
 			}
