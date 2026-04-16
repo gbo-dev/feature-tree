@@ -25,7 +25,7 @@ func RunGit(ctx context.Context, dir string, args ...string) (stdout string, std
 
 func RunGitCommon(commandCtx context.Context, repoCtx *RepoContext, args ...string) (stdout string, stderr string, exitCode int, err error) {
 	if repoCtx == nil {
-		return "", "", -1, fmt.Errorf("ft: missing repository context")
+		return "", "", -1, fmt.Errorf("missing repository context")
 	}
 
 	fullArgs := append([]string{"--git-dir", repoCtx.GitCommonDir}, args...)
@@ -73,7 +73,7 @@ func runCommand(commandCtx context.Context, dir string, name string, args ...str
 
 func CommandError(action string, stderr string, exitCode int, err error, fallback string) error {
 	if err != nil {
-		return fmt.Errorf("ft: %s: %w", action, err)
+		return fmt.Errorf("%s: %w", action, err)
 	}
 	if exitCode == 0 {
 		return nil
@@ -87,7 +87,7 @@ func CommandError(action string, stderr string, exitCode int, err error, fallbac
 		message = fmt.Sprintf("command failed with exit code %d", exitCode)
 	}
 
-	return fmt.Errorf("ft: %s: %s", action, message)
+	return fmt.Errorf("%s: %s", action, message)
 }
 
 const fetchTimeout = 30 * time.Second

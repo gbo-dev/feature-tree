@@ -97,12 +97,12 @@ func (s *Service) getPRInfo(prNumber int, usePRRef bool) (*PRInfo, error) {
 	if headSHA == "" {
 		_, stderr, exitCode, runErr := gitx.RunGitCommon(s.CommandCtx, s.Ctx, "fetch", "origin", fmt.Sprintf("pull/%d/head:refs/pull/%d/head", prNumber, prNumber))
 		if err := gitx.CommandError("fetch PR ref", stderr, exitCode, runErr, "git fetch failed"); err != nil {
-			return nil, fmt.Errorf("ft: failed to fetch PR #%d: %w", prNumber, err)
+			return nil, fmt.Errorf("failed to fetch PR #%d: %w", prNumber, err)
 		}
 
 		stdout, stderr, exitCode, runErr := gitx.RunGitCommon(s.CommandCtx, s.Ctx, "rev-parse", "--verify", fmt.Sprintf("refs/pull/%d/head", prNumber))
 		if err := gitx.CommandError("resolve PR commit", stderr, exitCode, runErr, "git rev-parse failed"); err != nil {
-			return nil, fmt.Errorf("ft: failed to resolve PR #%d commit: %w", prNumber, err)
+			return nil, fmt.Errorf("failed to resolve PR #%d commit: %w", prNumber, err)
 		}
 		headSHA = strings.TrimSpace(stdout)
 	}
@@ -206,16 +206,16 @@ func (s *Service) ensureLocalRefUpdated(prInfo *PRInfo) error {
 	)
 	if err := gitx.CommandError("update PR ref", stderr, exitCode, runErr, "git fetch failed"); err != nil {
 		if currentSHA != "" {
-			_, _ = fmt.Fprintf(os.Stderr, "ft: warning: failed to update PR #%d from origin; using cached ref %s\n", prInfo.Number, ref)
+			_, _ = fmt.Fprintf(os.Stderr, "warning: failed to update PR #%d from origin; using cached ref %s\n", prInfo.Number, ref)
 			prInfo.HeadSHA = currentSHA
 			return nil
 		}
-		return fmt.Errorf("ft: failed to update PR #%d: %w", prInfo.Number, err)
+		return fmt.Errorf("failed to update PR #%d: %w", prInfo.Number, err)
 	}
 
 	stdout, stderr, exitCode, runErr = gitx.RunGitCommon(s.CommandCtx, s.Ctx, "rev-parse", "--verify", ref)
 	if err := gitx.CommandError("resolve updated PR commit", stderr, exitCode, runErr, "git rev-parse failed"); err != nil {
-		return fmt.Errorf("ft: failed to resolve PR #%d commit: %w", prInfo.Number, err)
+		return fmt.Errorf("failed to resolve PR #%d commit: %w", prInfo.Number, err)
 	}
 	prInfo.HeadSHA = strings.TrimSpace(stdout)
 

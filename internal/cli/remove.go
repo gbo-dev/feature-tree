@@ -25,7 +25,7 @@ func newRemoveCmd() *cobra.Command {
 		Short: "Remove a branch worktree",
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 1 {
-				return fmt.Errorf("ft: unexpected arguments")
+				return fmt.Errorf("unexpected arguments")
 			}
 			return nil
 		},
@@ -41,7 +41,7 @@ func newRemoveCmd() *cobra.Command {
 			} else {
 				current, currentErr := gitx.CurrentBranch(cmd.Context(), "")
 				if currentErr != nil {
-					return fmt.Errorf("ft: cannot infer branch from detached HEAD")
+					return fmt.Errorf("cannot infer branch from detached HEAD")
 				}
 
 				if current != svc.Ctx.DefaultBranch {
@@ -54,7 +54,7 @@ func newRemoveCmd() *cobra.Command {
 					picked, pickErr := tui.PickRemoveBranch(cmd.Context(), entries, current, svc.Ctx)
 					if pickErr != nil {
 						if errors.Is(pickErr, tui.ErrSelectionCancelled) {
-							return fmt.Errorf("ft: selection cancelled")
+							return fmt.Errorf("selection cancelled")
 						}
 						return pickErr
 					}
@@ -65,7 +65,7 @@ func newRemoveCmd() *cobra.Command {
 			}
 
 			if fetchErr := gitx.FetchOrigin(cmd.Context(), svc.Ctx); fetchErr != nil {
-				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "ft: could not fetch from origin (%s); using cached refs\n", fetchErr)
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "could not fetch from origin (%s); using cached refs\n", fetchErr)
 			}
 
 			result, err := svc.RemoveWorktree(branch, forceWorktree, forceBranch, noDeleteBranch)
@@ -76,7 +76,7 @@ func newRemoveCmd() *cobra.Command {
 			out := cmd.OutOrStdout()
 			writeLine := func(format string, args ...any) error {
 				if _, err := fmt.Fprintf(out, format, args...); err != nil {
-					return fmt.Errorf("ft: write remove output: %w", err)
+					return fmt.Errorf("write remove output: %w", err)
 				}
 				return nil
 			}

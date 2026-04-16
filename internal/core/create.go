@@ -12,7 +12,7 @@ import (
 
 func (s *Service) CreateWorktree(branch string, baseBranch string) (*CreateResult, error) {
 	if strings.TrimSpace(branch) == "" {
-		return nil, fmt.Errorf("ft: branch name is required")
+		return nil, fmt.Errorf("branch name is required")
 	}
 	if strings.TrimSpace(baseBranch) == "" {
 		baseBranch = s.Ctx.DefaultBranch
@@ -37,14 +37,14 @@ func (s *Service) CreateWorktree(branch string, baseBranch string) (*CreateResul
 
 	for _, worktree := range worktrees {
 		if worktree.Path == worktreePath && worktree.Branch != branch {
-			return nil, fmt.Errorf("ft: path collision: %q maps to %s, already used by %q", branch, worktreePath, worktree.Branch)
+			return nil, fmt.Errorf("path collision: %q maps to %s, already used by %q", branch, worktreePath, worktree.Branch)
 		}
 	}
 
 	if _, err := os.Stat(worktreePath); err == nil {
-		return nil, fmt.Errorf("ft: target path already exists: %s", worktreePath)
+		return nil, fmt.Errorf("target path already exists: %s", worktreePath)
 	} else if !errors.Is(err, os.ErrNotExist) {
-		return nil, fmt.Errorf("ft: inspect target path: %w", err)
+		return nil, fmt.Errorf("inspect target path: %w", err)
 	}
 
 	branchExists, err := gitx.BranchExistsLocal(s.CommandCtx, s.Ctx, branch)
@@ -63,7 +63,7 @@ func (s *Service) CreateWorktree(branch string, baseBranch string) (*CreateResul
 			return nil, err
 		}
 		if !baseExists {
-			return nil, fmt.Errorf("ft: base branch not found locally: %s", resolvedBaseBranch)
+			return nil, fmt.Errorf("base branch not found locally: %s", resolvedBaseBranch)
 		}
 
 		_, stderr, exitCode, runErr := gitx.RunGitCommon(s.CommandCtx, s.Ctx, "worktree", "add", "-b", branch, worktreePath, resolvedBaseBranch)

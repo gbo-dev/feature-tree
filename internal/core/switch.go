@@ -22,7 +22,7 @@ func (s *Service) Switch(branch string, createIfMissing bool, baseBranch string)
 	}
 
 	if !createIfMissing {
-		return nil, fmt.Errorf("ft: branch %q has no worktree (use ft create %s or ft switch --create %s)", resolvedBranch, resolvedBranch, resolvedBranch)
+		return nil, fmt.Errorf("branch %q has no worktree (use ft create %s or ft switch --create %s)", resolvedBranch, resolvedBranch, resolvedBranch)
 	}
 
 	result, err := s.CreateWorktree(resolvedBranch, baseBranch)
