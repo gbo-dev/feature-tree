@@ -18,7 +18,9 @@ type CloneResult struct {
 // CloneRepo sets up a bare-in-.git repository from a remote URL and creates
 // the initial worktree for the detected default branch.
 func CloneRepo(commandCtx context.Context, url string, dir string) (*CloneResult, error) {
-	commandCtx = normalizeCommandContext(commandCtx)
+	if err := requireCommandContext(commandCtx); err != nil {
+		return nil, err
+	}
 
 	if dir == "" {
 		dir = repoNameFromURL(url)

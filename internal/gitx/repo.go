@@ -16,7 +16,11 @@ type RepoContext struct {
 }
 
 func DiscoverRepoContext(commandCtx context.Context) (*RepoContext, error) {
-	commonRaw, stderr, exitCode, runErr := runCommand(normalizeCommandContext(commandCtx), "", "git", "rev-parse", "--git-common-dir")
+	if err := requireCommandContext(commandCtx); err != nil {
+		return nil, err
+	}
+
+	commonRaw, stderr, exitCode, runErr := runCommand(commandCtx, "", "git", "rev-parse", "--git-common-dir")
 	commonRaw, err := ExpectSuccess("discover git common dir", commonRaw, stderr, exitCode, runErr, "not inside a git worktree")
 	if err != nil {
 		return nil, err
@@ -69,12 +73,12 @@ func DiscoverRepoContext(commandCtx context.Context) (*RepoContext, error) {
 
 func gitCommon(commandCtx context.Context, gitCommonDir string, args ...string) (string, error) {
 	fullArgs := append([]string{"--git-dir", gitCommonDir}, args...)
-	stdout, stderr, exitCode, err := runCommand(normalizeCommandContext(commandCtx), "", "git", fullArgs...)
+	stdout, stderr, exitCode, err := runCommand(commandCtx, "", "git", fullArgs...)
 	return ExpectSuccess("git command failed", stdout, stderr, exitCode, err, "git command failed")
 }
 
 func detectDefaultBranch(commandCtx context.Context, gitCommonDir string) (string, error) {
-	remoteHead, stderr, exitCode, runErr := runCommand(normalizeCommandContext(commandCtx), "", "git", "--git-dir", gitCommonDir, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD")
+	remoteHead, stderr, exitCode, runErr := runCommand(commandCtx, "", "git", "--git-dir", gitCommonDir, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD")
 	if runErr != nil {
 		return "", CommandError("resolve default branch via origin/HEAD", stderr, exitCode, runErr, "git symbolic-ref failed")
 	}
@@ -87,7 +91,7 @@ func detectDefaultBranch(commandCtx context.Context, gitCommonDir string) (strin
 
 	fallbacks := []string{"main", "master", "trunk"}
 	for _, candidate := range fallbacks {
-		_, stderr, exitCode, runErr := runCommand(normalizeCommandContext(commandCtx), "", "git", "--git-dir", gitCommonDir, "show-ref", "--verify", "--quiet", "refs/heads/"+candidate)
+		_, stderr, exitCode, runErr := runCommand(commandCtx, "", "git", "--git-dir", gitCommonDir, "show-ref", "--verify", "--quiet", "refs/heads/"+candidate)
 		if exitCode == 0 {
 			return candidate, nil
 		}
