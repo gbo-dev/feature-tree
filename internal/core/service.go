@@ -49,12 +49,13 @@ type RemoveResult struct {
 }
 
 func NewService(commandCtx context.Context) (*Service, error) {
+	if commandCtx == nil {
+		return nil, fmt.Errorf("missing command context")
+	}
+
 	repoCtx, err := gitx.DiscoverRepoContext(commandCtx)
 	if err != nil {
 		return nil, err
-	}
-	if commandCtx == nil {
-		commandCtx = context.Background()
 	}
 	return &Service{Ctx: repoCtx, CommandCtx: commandCtx}, nil
 }

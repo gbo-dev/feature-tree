@@ -9,6 +9,17 @@ import (
 	"github.com/gbo-dev/feature-tree/internal/testutil"
 )
 
+func TestNewServiceRejectsNilContext(t *testing.T) {
+	var nilCtx context.Context
+	_, err := NewService(nilCtx)
+	if err == nil {
+		t.Fatalf("NewService expected error for nil context")
+	}
+	if !strings.Contains(err.Error(), "missing command context") {
+		t.Fatalf("NewService nil-context error = %q, expected missing context message", err.Error())
+	}
+}
+
 func TestSanitizeBranchName(t *testing.T) {
 	tests := []struct {
 		in   string

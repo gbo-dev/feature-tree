@@ -12,18 +12,24 @@ import (
 
 const defaultCommandTimeout = 5 * time.Minute
 
-func normalizeCommandContext(ctx context.Context) context.Context {
-	if ctx != nil {
-		return ctx
+func requireCommandContext(commandCtx context.Context) error {
+	if commandCtx == nil {
+		return fmt.Errorf("missing command context")
 	}
-	return context.Background()
+	return nil
 }
 
 func RunGit(ctx context.Context, dir string, args ...string) (stdout string, stderr string, exitCode int, err error) {
-	return runCommand(normalizeCommandContext(ctx), dir, "git", args...)
+	if err := requireCommandContext(ctx); err != nil {
+		return "", "", -1, err
+	}
+	return runCommand(ctx, dir, "git", args...)
 }
 
 func RunGitCommon(commandCtx context.Context, repoCtx *RepoContext, args ...string) (stdout string, stderr string, exitCode int, err error) {
+	if err := requireCommandContext(commandCtx); err != nil {
+		return "", "", -1, err
+	}
 	if repoCtx == nil {
 		return "", "", -1, fmt.Errorf("missing repository context")
 	}
@@ -31,11 +37,15 @@ func RunGitCommon(commandCtx context.Context, repoCtx *RepoContext, args ...stri
 	fullArgs := append([]string{"--git-dir", repoCtx.GitCommonDir}, args...)
 	workingDir := ""
 	workingDir = strings.TrimSpace(repoCtx.RepoRoot)
-	return runCommand(normalizeCommandContext(commandCtx), workingDir, "git", fullArgs...)
+	return runCommand(commandCtx, workingDir, "git", fullArgs...)
 }
 
 func runCommand(commandCtx context.Context, dir string, name string, args ...string) (stdout string, stderr string, exitCode int, err error) {
-	ctx, cancel := context.WithTimeout(normalizeCommandContext(commandCtx), defaultCommandTimeout)
+	if err := requireCommandContext(commandCtx); err != nil {
+		return "", "", -1, err
+	}
+
+	ctx, cancel := context.WithTimeout(commandCtx, defaultCommandTimeout)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, name, args...)
@@ -93,11 +103,14 @@ func CommandError(action string, stderr string, exitCode int, err error, fallbac
 const fetchTimeout = 30 * time.Second
 
 func FetchOrigin(commandCtx context.Context, ctx *RepoContext) error {
+	if err := requireCommandContext(commandCtx); err != nil {
+		return fmt.Errorf("fetch failed: %w", err)
+	}
 	if ctx == nil {
 		return fmt.Errorf("fetch failed: missing repository context")
 	}
 
-	fetchCtx, cancel := context.WithTimeout(normalizeCommandContext(commandCtx), fetchTimeout)
+	fetchCtx, cancel := context.WithTimeout(commandCtx, fetchTimeout)
 	defer cancel()
 
 	fullArgs := append([]string{"--git-dir", ctx.GitCommonDir}, "fetch", "origin")
