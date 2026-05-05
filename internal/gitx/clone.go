@@ -22,47 +22,27 @@ func CloneRepo(commandCtx context.Context, url string, dir string) (*CloneResult
 		return nil, err
 	}
 
-	if dir == "" {
-		dir = repoNameFromURL(url)
-	}
-	if dir == "" {
-		return nil, fmt.Errorf("could not infer directory name from URL %q; pass an explicit directory", url)
-	}
-
-	absDir, err := filepath.Abs(dir)
+	absDir, gitDir, err := cloneResolvePaths(url, dir)
 	if err != nil {
-		return nil, fmt.Errorf("resolve target directory: %w", err)
+		return nil, err
 	}
 
 	if _, err := os.Stat(absDir); err == nil {
 		return nil, fmt.Errorf("target directory already exists: %s", absDir)
 	}
 
-	gitDir := filepath.Join(absDir, ".git")
-
-	_, stderr, exitCode, runErr := runCommand(commandCtx, "", "git", "clone", "--bare", url, gitDir)
-	if err := CommandError("clone repository", stderr, exitCode, runErr, "git clone failed"); err != nil {
+	if err := cloneBareRepo(commandCtx, url, gitDir, absDir); err != nil {
+		return nil, err
+	}
+	if err := cloneConfigureFetchRefspec(commandCtx, gitDir); err != nil {
 		_ = os.RemoveAll(absDir)
 		return nil, err
 	}
-
-	// Bare clones omit this refspec; without it, remote-tracking refs stay stale
-	// and origin/HEAD cannot be resolved reliably.
-	_, stderr, exitCode, runErr = runCommand(commandCtx, "", "git", "--git-dir", gitDir, "config",
-		"remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
-	if err := CommandError("configure remote fetch refspec", stderr, exitCode, runErr, "git config failed"); err != nil {
+	if err := cloneFetchOriginRefs(commandCtx, gitDir); err != nil {
 		_ = os.RemoveAll(absDir)
 		return nil, err
 	}
-
-	_, stderr, exitCode, runErr = runCommand(commandCtx, "", "git", "--git-dir", gitDir, "fetch", "origin")
-	if err := CommandError("fetch origin refs", stderr, exitCode, runErr, "git fetch origin failed"); err != nil {
-		_ = os.RemoveAll(absDir)
-		return nil, err
-	}
-
-	_, stderr, exitCode, runErr = runCommand(commandCtx, "", "git", "--git-dir", gitDir, "remote", "set-head", "origin", "--auto")
-	if err := CommandError("resolve origin/HEAD", stderr, exitCode, runErr, "git remote set-head origin --auto failed"); err != nil {
+	if err := cloneResolveRemoteHEAD(commandCtx, gitDir); err != nil {
 		_ = os.RemoveAll(absDir)
 		return nil, fmt.Errorf("%w (ensure the remote default branch/HEAD is configured)", err)
 	}
@@ -73,22 +53,13 @@ func CloneRepo(commandCtx context.Context, url string, dir string) (*CloneResult
 		return nil, fmt.Errorf("detect default branch: %w", err)
 	}
 
-	// Bare clones also omit branch tracking config needed for git pull in worktrees.
-	trackingArgs := [][]string{
-		{"--git-dir", gitDir, "config", "branch." + defaultBranch + ".remote", "origin"},
-		{"--git-dir", gitDir, "config", "branch." + defaultBranch + ".merge", "refs/heads/" + defaultBranch},
-	}
-	for _, args := range trackingArgs {
-		_, stderr, exitCode, runErr := runCommand(commandCtx, "", "git", args...)
-		if err := CommandError("configure default branch tracking", stderr, exitCode, runErr, "git config failed"); err != nil {
-			_ = os.RemoveAll(absDir)
-			return nil, err
-		}
+	if err := cloneConfigureTracking(commandCtx, gitDir, defaultBranch); err != nil {
+		_ = os.RemoveAll(absDir)
+		return nil, err
 	}
 
 	worktreePath := filepath.Join(absDir, defaultBranch)
-	_, stderr, exitCode, runErr = runCommand(commandCtx, "", "git", "--git-dir", gitDir, "worktree", "add", worktreePath, defaultBranch)
-	if err := CommandError("create initial worktree", stderr, exitCode, runErr, "git worktree add failed"); err != nil {
+	if err := cloneCreateInitialWorktree(commandCtx, gitDir, worktreePath, defaultBranch); err != nil {
 		_ = os.RemoveAll(absDir)
 		return nil, err
 	}
@@ -99,6 +70,77 @@ func CloneRepo(commandCtx context.Context, url string, dir string) (*CloneResult
 		DefaultBranch: defaultBranch,
 		WorktreePath:  worktreePath,
 	}, nil
+}
+
+func cloneResolvePaths(url string, dir string) (absDir string, gitDir string, err error) {
+	if dir == "" {
+		dir = repoNameFromURL(url)
+	}
+	if dir == "" {
+		return "", "", fmt.Errorf("could not infer directory name from URL %q; pass an explicit directory", url)
+	}
+
+	absDir, err = filepath.Abs(dir)
+	if err != nil {
+		return "", "", fmt.Errorf("resolve target directory: %w", err)
+	}
+	return absDir, filepath.Join(absDir, ".git"), nil
+}
+
+func cloneBareRepo(commandCtx context.Context, url string, gitDir string, absDir string) error {
+	_, stderr, exitCode, runErr := runCommand(commandCtx, "", "git", "clone", "--bare", url, gitDir)
+	if err := CommandError("clone repository", stderr, exitCode, runErr, "git clone failed"); err != nil {
+		_ = os.RemoveAll(absDir)
+		return err
+	}
+	return nil
+}
+
+func cloneConfigureFetchRefspec(commandCtx context.Context, gitDir string) error {
+	_, stderr, exitCode, runErr := runCommand(commandCtx, "", "git", "--git-dir", gitDir, "config",
+		"remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
+	if err := CommandError("configure remote fetch refspec", stderr, exitCode, runErr, "git config failed"); err != nil {
+		return err
+	}
+	return nil
+}
+
+func cloneFetchOriginRefs(commandCtx context.Context, gitDir string) error {
+	_, stderr, exitCode, runErr := runCommand(commandCtx, "", "git", "--git-dir", gitDir, "fetch", "origin")
+	if err := CommandError("fetch origin refs", stderr, exitCode, runErr, "git fetch origin failed"); err != nil {
+		return err
+	}
+	return nil
+}
+
+func cloneResolveRemoteHEAD(commandCtx context.Context, gitDir string) error {
+	_, stderr, exitCode, runErr := runCommand(commandCtx, "", "git", "--git-dir", gitDir, "remote", "set-head", "origin", "--auto")
+	if err := CommandError("resolve origin/HEAD", stderr, exitCode, runErr, "git remote set-head origin --auto failed"); err != nil {
+		return err
+	}
+	return nil
+}
+
+func cloneConfigureTracking(commandCtx context.Context, gitDir string, defaultBranch string) error {
+	trackingArgs := [][]string{
+		{"--git-dir", gitDir, "config", "branch." + defaultBranch + ".remote", "origin"},
+		{"--git-dir", gitDir, "config", "branch." + defaultBranch + ".merge", "refs/heads/" + defaultBranch},
+	}
+	for _, args := range trackingArgs {
+		_, stderr, exitCode, runErr := runCommand(commandCtx, "", "git", args...)
+		if err := CommandError("configure default branch tracking", stderr, exitCode, runErr, "git config failed"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func cloneCreateInitialWorktree(commandCtx context.Context, gitDir string, worktreePath string, defaultBranch string) error {
+	_, stderr, exitCode, runErr := runCommand(commandCtx, "", "git", "--git-dir", gitDir, "worktree", "add", worktreePath, defaultBranch)
+	if err := CommandError("create initial worktree", stderr, exitCode, runErr, "git worktree add failed"); err != nil {
+		return err
+	}
+	return nil
 }
 
 // repoNameFromURL derives a directory name from a git URL, stripping the
