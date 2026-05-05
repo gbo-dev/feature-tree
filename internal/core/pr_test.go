@@ -421,15 +421,15 @@ func TestEnsureLocalRefUpdatedRefreshesStaleRef(t *testing.T) {
 		t.Fatalf("getPRInfo returned error: %v", err)
 	}
 
-	_, err = svc.ensureLocalRefUpdated(context.Background(), prInfo)
+	updatedSHA, _, err := svc.ensureLocalRefUpdated(context.Background(), prInfo.Number, prInfo.HeadSHA)
 	if err != nil {
 		t.Fatalf("ensureLocalRefUpdated returned error: %v", err)
 	}
 
 	stdout, _, _, _ := gitx.RunGitCommon(context.Background(), svc.Ctx, "rev-parse", "--verify", fmt.Sprintf("refs/pull/%d/head", 55))
-	updatedSHA := strings.TrimSpace(stdout)
-	if updatedSHA != prInfo.HeadSHA {
-		t.Fatalf("ensureLocalRefUpdated: expected SHA %q, got %q", prInfo.HeadSHA, updatedSHA)
+	expectedSHA := strings.TrimSpace(stdout)
+	if expectedSHA != updatedSHA {
+		t.Fatalf("ensureLocalRefUpdated: expected SHA %q, got %q", expectedSHA, updatedSHA)
 	}
 }
 
