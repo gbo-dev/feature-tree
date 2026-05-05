@@ -101,17 +101,21 @@ func (s *Service) RemoveWorktree(commandCtx context.Context, branch string, forc
 		return nil, err
 	}
 
+	return s.maybeDeleteBranchAfterRemove(commandCtx, resolvedBranch, targetRef, forceBranch, noDeleteBranch, result)
+}
+
+func (s *Service) maybeDeleteBranchAfterRemove(commandCtx context.Context, branch string, targetRef string, forceBranch bool, noDeleteBranch bool, result *RemoveResult) (*RemoveResult, error) {
 	if noDeleteBranch {
 		return result, nil
 	}
 
-	relation, err := s.branchDeletionRelation(commandCtx, resolvedBranch, targetRef)
+	relation, err := s.branchDeletionRelation(commandCtx, branch, targetRef)
 	if err != nil {
 		return nil, err
 	}
 
 	if relation.safeToDelete() {
-		if err := s.deleteBranch(commandCtx, resolvedBranch, targetRef, relation); err != nil {
+		if err := s.deleteBranch(commandCtx, branch, targetRef, relation); err != nil {
 			return nil, err
 		}
 		switch relation {
@@ -126,8 +130,8 @@ func (s *Service) RemoveWorktree(commandCtx context.Context, branch string, forc
 	}
 
 	if forceBranch {
-		_, stderr, exitCode, runErr = gitx.RunGitCommon(commandCtx, s.Ctx, "branch", "-D", resolvedBranch)
-		if err := gitx.CommandError(fmt.Sprintf("force delete branch %q", resolvedBranch), stderr, exitCode, runErr, "git branch -D failed"); err != nil {
+		_, stderr, exitCode, runErr := gitx.RunGitCommon(commandCtx, s.Ctx, "branch", "-D", branch)
+		if err := gitx.CommandError(fmt.Sprintf("force delete branch %q", branch), stderr, exitCode, runErr, "git branch -D failed"); err != nil {
 			return nil, err
 		}
 		result.DeletedForced = true
@@ -162,6 +166,14 @@ func (s *Service) deletionTargetRef(commandCtx context.Context) (string, error) 
 	}
 
 	return s.Ctx.DefaultBranch, nil
+}
+
+func (s *Service) checkSafeToDelete(commandCtx context.Context, branch string, targetRef string) (bool, error) {
+	relation, err := s.branchDeletionRelation(commandCtx, branch, targetRef)
+	if err != nil {
+		return false, err
+	}
+	return relation.safeToDelete(), nil
 }
 
 func (s *Service) branchDeletionRelation(commandCtx context.Context, branch string, target string) (branchDeletionRelation, error) {
@@ -232,11 +244,11 @@ func (s *Service) ensureWorktreeSafeToRemove(commandCtx context.Context, path st
 		return err
 	}
 	if upstream == "" {
-		relation, err := s.branchDeletionRelation(commandCtx, branch, targetRef)
+		safe, err := s.checkSafeToDelete(commandCtx, branch, targetRef)
 		if err != nil {
 			return err
 		}
-		if relation.safeToDelete() {
+		if safe {
 			return nil
 		}
 		return fmt.Errorf("branch %q has no upstream tracking branch and differs from %s; push first, or use --force-worktree", branch, targetRef)
@@ -253,11 +265,11 @@ func (s *Service) ensureWorktreeSafeToRemove(commandCtx context.Context, path st
 	}
 
 	if aheadCount > 0 {
-		relation, err := s.branchDeletionRelation(commandCtx, branch, targetRef)
+		safe, err := s.checkSafeToDelete(commandCtx, branch, targetRef)
 		if err != nil {
 			return err
 		}
-		if relation.safeToDelete() {
+		if safe {
 			return nil
 		}
 		return fmt.Errorf("branch %q has commits not pushed to %s; push first, or use --force-worktree", branch, upstream)
