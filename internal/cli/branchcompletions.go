@@ -27,7 +27,7 @@ func completeLocalBranchesWithShortcuts(cmd *cobra.Command, args []string, toCom
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 
-	branches, err := listLocalBranches(completionContext(cmd), ctx)
+	branches, err := gitx.ListLocalBranches(completionContext(cmd), ctx)
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
@@ -37,32 +37,14 @@ func completeLocalBranchesWithShortcuts(cmd *cobra.Command, args []string, toCom
 }
 
 func completeSwitchBranches(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	if len(args) > 0 {
-		return nil, cobra.ShellCompDirectiveNoFileComp
-	}
-
-	ctx, err := gitx.DiscoverRepoContext(completionContext(cmd))
-	if err != nil {
-		return nil, cobra.ShellCompDirectiveNoFileComp
-	}
-
-	worktreeBranches, err := listWorktreeBranches(completionContext(cmd), ctx)
-	if err != nil {
-		return nil, cobra.ShellCompDirectiveNoFileComp
-	}
-
-	localBranches, err := listLocalBranches(completionContext(cmd), ctx)
-	if err != nil {
-		return nil, cobra.ShellCompDirectiveNoFileComp
-	}
-
-	candidates := append([]string{"^", "@"}, worktreeBranches...)
-	candidates = append(candidates, localBranches...)
-
-	return filterPrefixUniqueSorted(candidates, toComplete), cobra.ShellCompDirectiveNoFileComp
+	return completeWorktreeAndLocalBranches(cmd, args, toComplete, true)
 }
 
 func completeCreateBranches(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return completeWorktreeAndLocalBranches(cmd, args, toComplete, false)
+}
+
+func completeWorktreeAndLocalBranches(cmd *cobra.Command, args []string, toComplete string, includeShortcuts bool) ([]string, cobra.ShellCompDirective) {
 	if len(args) > 0 {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
@@ -72,17 +54,30 @@ func completeCreateBranches(cmd *cobra.Command, args []string, toComplete string
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 
-	worktreeBranches, err := listWorktreeBranches(completionContext(cmd), ctx)
+	entries, err := gitx.ListWorktrees(completionContext(cmd), ctx)
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 
-	localBranches, err := listLocalBranches(completionContext(cmd), ctx)
+	worktreeBranches := make([]string, 0, len(entries))
+	for _, worktree := range entries {
+		if worktree.Branch == "" {
+			continue
+		}
+		worktreeBranches = append(worktreeBranches, worktree.Branch)
+	}
+
+	localBranches, err := gitx.ListLocalBranches(completionContext(cmd), ctx)
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 
-	candidates := append([]string{}, worktreeBranches...)
+	var candidates []string
+	if includeShortcuts {
+		candidates = append([]string{"^", "@"}, worktreeBranches...)
+	} else {
+		candidates = append([]string{}, worktreeBranches...)
+	}
 	candidates = append(candidates, localBranches...)
 
 	return filterPrefixUniqueSorted(candidates, toComplete), cobra.ShellCompDirectiveNoFileComp
@@ -98,42 +93,21 @@ func completeRemovableWorktreeBranches(cmd *cobra.Command, args []string, toComp
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 
-	worktreeBranches, err := listWorktreeBranches(completionContext(cmd), ctx)
+	entries, err := gitx.ListWorktrees(completionContext(cmd), ctx)
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 
-	filtered := make([]string, 0, len(worktreeBranches)+1)
+	filtered := make([]string, 0, len(entries)+1)
 	filtered = append(filtered, "@")
-	for _, branch := range worktreeBranches {
-		if branch == ctx.DefaultBranch {
+	for _, worktree := range entries {
+		if worktree.Branch == "" || worktree.Branch == ctx.DefaultBranch {
 			continue
 		}
-		filtered = append(filtered, branch)
+		filtered = append(filtered, worktree.Branch)
 	}
 
 	return filterPrefixUniqueSorted(filtered, toComplete), cobra.ShellCompDirectiveNoFileComp
-}
-
-func listLocalBranches(commandCtx context.Context, ctx *gitx.RepoContext) ([]string, error) {
-	return gitx.ListLocalBranches(commandCtx, ctx)
-}
-
-func listWorktreeBranches(commandCtx context.Context, ctx *gitx.RepoContext) ([]string, error) {
-	entries, err := gitx.ListWorktrees(commandCtx, ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	out := make([]string, 0, len(entries))
-	for _, worktree := range entries {
-		if worktree.Branch == "" {
-			continue
-		}
-		out = append(out, worktree.Branch)
-	}
-
-	return out, nil
 }
 
 func filterPrefixUniqueSorted(values []string, prefix string) []string {

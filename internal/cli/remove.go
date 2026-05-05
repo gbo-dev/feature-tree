@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -73,47 +74,8 @@ func newRemoveCmd() *cobra.Command {
 				return err
 			}
 
-			out := cmd.OutOrStdout()
-			writeLine := func(format string, args ...any) error {
-				if _, err := fmt.Fprintf(out, format, args...); err != nil {
-					return fmt.Errorf("write remove output: %w", err)
-				}
-				return nil
-			}
-
-			if result.NoDeleteBranch {
-				if err := writeLine("Removed worktree: %s\n", result.Path); err != nil {
-					return err
-				}
-			} else if result.DeletedMerged {
-				if result.TargetRef == svc.Ctx.DefaultBranch {
-					if err := writeLine("Removed worktree and deleted merged branch: %s\n", result.Branch); err != nil {
-						return err
-					}
-				} else {
-					if err := writeLine("Removed worktree and deleted branch: %s (fully contained in %s)\n", result.Branch, result.TargetRef); err != nil {
-						return err
-					}
-				}
-			} else if result.DeletedIdentical {
-				if err := writeLine("Removed worktree and deleted branch: %s (identical to %s)\n", result.Branch, result.TargetRef); err != nil {
-					return err
-				}
-			} else if result.DeletedEquivalent {
-				if err := writeLine("Removed worktree and deleted branch: %s (no effective changes vs %s)\n", result.Branch, result.TargetRef); err != nil {
-					return err
-				}
-			} else if result.DeletedForced {
-				if err := writeLine("Removed worktree and force-deleted branch: %s\n", result.Branch); err != nil {
-					return err
-				}
-			} else {
-				if err := writeLine("Removed worktree: %s\n", result.Path); err != nil {
-					return err
-				}
-				if err := writeLine("Kept branch: %s (not merged to %s; use -D to force delete)\n", result.Branch, result.TargetRef); err != nil {
-					return err
-				}
+			if err := renderRemoveResult(cmd.OutOrStdout(), result, svc.Ctx.DefaultBranch); err != nil {
+				return err
 			}
 
 			if strings.TrimSpace(result.FallbackPath) != "" {
@@ -130,4 +92,36 @@ func newRemoveCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&noDeleteBranch, "no-delete-branch", false, "Keep branch after worktree removal")
 	cmd.ValidArgsFunction = completeRemovableWorktreeBranches
 	return cmd
+}
+
+func renderRemoveResult(w io.Writer, result *core.RemoveResult, defaultBranch string) error {
+	writeLine := func(format string, args ...any) error {
+		if _, err := fmt.Fprintf(w, format, args...); err != nil {
+			return fmt.Errorf("write remove output: %w", err)
+		}
+		return nil
+	}
+
+	if result.NoDeleteBranch {
+		return writeLine("Removed worktree: %s\n", result.Path)
+	}
+	if result.DeletedMerged {
+		if result.TargetRef == defaultBranch {
+			return writeLine("Removed worktree and deleted merged branch: %s\n", result.Branch)
+		}
+		return writeLine("Removed worktree and deleted branch: %s (fully contained in %s)\n", result.Branch, result.TargetRef)
+	}
+	if result.DeletedIdentical {
+		return writeLine("Removed worktree and deleted branch: %s (identical to %s)\n", result.Branch, result.TargetRef)
+	}
+	if result.DeletedEquivalent {
+		return writeLine("Removed worktree and deleted branch: %s (no effective changes vs %s)\n", result.Branch, result.TargetRef)
+	}
+	if result.DeletedForced {
+		return writeLine("Removed worktree and force-deleted branch: %s\n", result.Branch)
+	}
+	if err := writeLine("Removed worktree: %s\n", result.Path); err != nil {
+		return err
+	}
+	return writeLine("Kept branch: %s (not merged to %s; use -D to force delete)\n", result.Branch, result.TargetRef)
 }
