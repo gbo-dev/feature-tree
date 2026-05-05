@@ -2,6 +2,8 @@ package gitx
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strings"
 	"sync"
 
@@ -27,26 +29,29 @@ func (c CommitInfo) Display(max int) string {
 }
 
 // HeadCommit returns abbreviated head-commit info for branch.
-func HeadCommit(commandCtx context.Context, ctx *RepoContext, branch string) CommitInfo {
+func HeadCommit(commandCtx context.Context, ctx *RepoContext, branch string) (CommitInfo, error) {
 	out, stderr, exitCode, runErr := RunGitCommon(commandCtx, ctx, "log", "-1", "--abbrev=4", "--format=%h\t%s", branch)
-	if err := CommandError("read branch head commit", stderr, exitCode, runErr, "git log failed"); err != nil || out == "" {
-		return CommitInfo{}
+	if err := CommandError("read branch head commit", stderr, exitCode, runErr, "git log failed"); err != nil {
+		return CommitInfo{}, err
+	}
+	if out == "" {
+		return CommitInfo{}, fmt.Errorf("read branch head commit: empty output")
 	}
 	parts := strings.SplitN(strings.TrimSpace(out), "\t", 2)
 	if len(parts) != 2 {
-		return CommitInfo{}
+		return CommitInfo{}, fmt.Errorf("read branch head commit: unexpected output format")
 	}
 	return CommitInfo{
 		Hash:    strings.TrimSpace(parts[0]),
 		Subject: strings.TrimSpace(parts[1]),
-	}
+	}, nil
 }
 
 // FetchCommitsParallel returns head commits for branches in input order.
-func FetchCommitsParallel(commandCtx context.Context, ctx *RepoContext, branches []string) []CommitInfo {
+func FetchCommitsParallel(commandCtx context.Context, ctx *RepoContext, branches []string) ([]CommitInfo, error) {
 	results := make([]CommitInfo, len(branches))
 	if len(branches) == 0 {
-		return results
+		return results, nil
 	}
 
 	limit := maxConcurrentHeadCommits
@@ -56,15 +61,29 @@ func FetchCommitsParallel(commandCtx context.Context, ctx *RepoContext, branches
 
 	sem := make(chan struct{}, limit)
 	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var errs []error
+
 	for i, b := range branches {
 		sem <- struct{}{}
 		wg.Add(1)
 		go func(idx int, branch string) {
 			defer wg.Done()
 			defer func() { <-sem }()
-			results[idx] = HeadCommit(commandCtx, ctx, branch)
+			ci, err := HeadCommit(commandCtx, ctx, branch)
+			if err != nil {
+				mu.Lock()
+				errs = append(errs, fmt.Errorf("head commit for %q: %w", branch, err))
+				mu.Unlock()
+				return
+			}
+			results[idx] = ci
 		}(i, b)
 	}
 	wg.Wait()
-	return results
+
+	if len(errs) > 0 {
+		return results, errors.Join(errs...)
+	}
+	return results, nil
 }
