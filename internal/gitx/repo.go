@@ -40,7 +40,10 @@ func DiscoverRepoContext(commandCtx context.Context) (*RepoContext, error) {
 	}
 
 	info, err := os.Stat(commonAbs)
-	if err != nil || !info.IsDir() {
+	if err != nil {
+		return nil, fmt.Errorf("stat git common dir %s: %w", commonAbs, err)
+	}
+	if !info.IsDir() {
 		return nil, fmt.Errorf("git common dir not found: %s", commonAbs)
 	}
 

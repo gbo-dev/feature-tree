@@ -79,7 +79,7 @@ func listLocalBranchSnapshotsBatch(commandCtx context.Context, ctx *RepoContext)
 		})
 	}
 	if parseFailures > 0 {
-		return nil, fmt.Errorf("parse local branch snapshots")
+		return nil, fmt.Errorf("parse local branch snapshots: %d lines could not be parsed", parseFailures)
 	}
 	return snapshots, nil
 }

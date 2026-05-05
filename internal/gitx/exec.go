@@ -35,8 +35,7 @@ func RunGitCommon(commandCtx context.Context, repoCtx *RepoContext, args ...stri
 	}
 
 	fullArgs := append([]string{"--git-dir", repoCtx.GitCommonDir}, args...)
-	workingDir := ""
-	workingDir = strings.TrimSpace(repoCtx.RepoRoot)
+	workingDir := strings.TrimSpace(repoCtx.RepoRoot)
 	return runCommand(commandCtx, workingDir, "git", fullArgs...)
 }
 
