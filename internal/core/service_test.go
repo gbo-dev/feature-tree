@@ -31,10 +31,12 @@ func TestSanitizeBranchName(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		got := SanitizeBranchName(tc.in)
-		if got != tc.want {
-			t.Fatalf("SanitizeBranchName(%q) = %q, want %q", tc.in, got, tc.want)
-		}
+		t.Run(tc.in, func(t *testing.T) {
+			got := SanitizeBranchName(tc.in)
+			if got != tc.want {
+				t.Fatalf("SanitizeBranchName(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
 	}
 }
 

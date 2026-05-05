@@ -2,7 +2,9 @@ package gitx
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -70,44 +72,60 @@ func TestRunGitCommonRejectsNilCommandContext(t *testing.T) {
 }
 
 func TestRunGitCommonWorksWhenProcessCWDWasDeleted(t *testing.T) {
+	if os.Getenv("BE_DELETED_CWD_TEST") == "1" {
+		repo := os.Getenv("TEST_REPO")
+		deletedCWD := os.Getenv("DELETED_CWD")
+
+		if err := os.Chdir(deletedCWD); err != nil {
+			fmt.Fprintf(os.Stderr, "chdir failed: %v\n", err)
+			os.Exit(1)
+		}
+		if err := os.RemoveAll(deletedCWD); err != nil {
+			fmt.Fprintf(os.Stderr, "remove failed: %v\n", err)
+			os.Exit(1)
+		}
+
+		repoCtx := &RepoContext{
+			RepoRoot:     repo,
+			GitCommonDir: filepath.Join(repo, ".git"),
+		}
+
+		stdout, stderr, exitCode, runErr := RunGitCommon(context.Background(), repoCtx, "rev-parse", "--abbrev-ref", "HEAD")
+		if runErr != nil {
+			fmt.Fprintf(os.Stderr, "RunGitCommon error: %v\n", runErr)
+			os.Exit(1)
+		}
+		if exitCode != 0 {
+			fmt.Fprintf(os.Stderr, "RunGitCommon exitCode = %d, stderr: %q\n", exitCode, stderr)
+			os.Exit(1)
+		}
+		if strings.TrimSpace(stdout) != "main" {
+			fmt.Fprintf(os.Stderr, "RunGitCommon stdout = %q, want main\n", stdout)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
+
 	base := t.TempDir()
 	repo := filepath.Join(base, "repo")
 	testutil.InitRepoWithMain(t, repo)
-
-	repoCtx := &RepoContext{
-		RepoRoot:     repo,
-		GitCommonDir: filepath.Join(repo, ".git"),
-	}
 
 	deletedCWD := filepath.Join(base, "deleted-cwd")
 	if err := os.MkdirAll(deletedCWD, 0o755); err != nil {
 		t.Fatalf("create temporary cwd: %v", err)
 	}
 
-	originalWD, err := os.Getwd()
+	cmd := exec.Command(os.Args[0], "-test.run=^TestRunGitCommonWorksWhenProcessCWDWasDeleted$")
+	cmd.Env = append(os.Environ(),
+		"BE_DELETED_CWD_TEST=1",
+		"TEST_REPO="+repo,
+		"DELETED_CWD="+deletedCWD,
+	)
+	cmd.Dir = base
+
+	out, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("getwd failed: %v", err)
-	}
-	if err := os.Chdir(deletedCWD); err != nil {
-		t.Fatalf("chdir to temporary cwd failed: %v", err)
-	}
-	t.Cleanup(func() {
-		_ = os.Chdir(originalWD)
-	})
-
-	if err := os.RemoveAll(deletedCWD); err != nil {
-		t.Fatalf("remove temporary cwd failed: %v", err)
-	}
-
-	stdout, stderr, exitCode, runErr := RunGitCommon(context.Background(), repoCtx, "rev-parse", "--abbrev-ref", "HEAD")
-	if runErr != nil {
-		t.Fatalf("RunGitCommon returned unexpected error: %v", runErr)
-	}
-	if exitCode != 0 {
-		t.Fatalf("RunGitCommon exitCode = %d, want 0 (stderr: %q)", exitCode, stderr)
-	}
-	if strings.TrimSpace(stdout) != "main" {
-		t.Fatalf("RunGitCommon stdout = %q, want %q", stdout, "main")
+		t.Fatalf("subprocess failed: %v\noutput: %s", err, out)
 	}
 }
 

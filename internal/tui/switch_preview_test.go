@@ -114,8 +114,10 @@ func TestCompactRelativeAge(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		if got := compactRelativeAge(tc.in); got != tc.want {
-			t.Fatalf("compactRelativeAge(%q) = %q, want %q", tc.in, got, tc.want)
-		}
+		t.Run(tc.in, func(t *testing.T) {
+			if got := compactRelativeAge(tc.in); got != tc.want {
+				t.Fatalf("compactRelativeAge(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
 	}
 }
