@@ -78,6 +78,30 @@ type pickerRow struct {
 	hidden   []string
 }
 
+func buildWorktreePickerRow(commandCtx context.Context, worktree gitx.Worktree, commit gitx.CommitInfo, currentBranch string, ctx *gitx.RepoContext, fromPath string) pickerRow {
+	dirty, err := gitx.DirtySymbols(commandCtx, worktree.Path)
+	if err != nil {
+		dirty = "?"
+	}
+	relation, err := gitx.BranchRelation(commandCtx, ctx, worktree.Branch)
+	if err != nil {
+		relation = "?"
+	}
+	m := ""
+	if worktree.Branch == ctx.DefaultBranch && worktree.Branch != currentBranch {
+		m = "^"
+	}
+	return pickerRow{
+		branch:   worktree.Branch,
+		commit:   commit,
+		path:     gitx.RelativePath(worktree.Path, fromPath),
+		state:    gitx.DirtyState(dirty),
+		relation: relation,
+		current:  worktree.Branch == currentBranch,
+		marker:   m,
+	}
+}
+
 type headerCol struct {
 	title string
 	width int
@@ -264,27 +288,7 @@ func PickSwitchBranch(commandCtx context.Context, entries []gitx.Worktree, curre
 
 	rows := make([]pickerRow, 0, len(entries))
 	for i, worktree := range entries {
-		dirty, err := gitx.DirtySymbols(commandCtx, worktree.Path)
-		if err != nil {
-			dirty = "?"
-		}
-		relation, err := gitx.BranchRelation(commandCtx, ctx, worktree.Branch)
-		if err != nil {
-			relation = "?"
-		}
-		m := ""
-		if worktree.Branch == ctx.DefaultBranch && worktree.Branch != currentBranch {
-			m = "^"
-		}
-		rows = append(rows, pickerRow{
-			branch:   worktree.Branch,
-			commit:   commits[i],
-			path:     gitx.RelativePath(worktree.Path, fromPath),
-			state:    gitx.DirtyState(dirty),
-			relation: relation,
-			current:  worktree.Branch == currentBranch,
-			marker:   m,
-		})
+		rows = append(rows, buildWorktreePickerRow(commandCtx, worktree, commits[i], currentBranch, ctx, fromPath))
 	}
 
 	if len(rows) == 0 {
@@ -448,24 +452,7 @@ func PickRemoveBranch(commandCtx context.Context, entries []gitx.Worktree, curre
 		if worktree.Branch == ctx.DefaultBranch {
 			continue
 		}
-
-		dirty, err := gitx.DirtySymbols(commandCtx, worktree.Path)
-		if err != nil {
-			dirty = "?"
-		}
-		relation, err := gitx.BranchRelation(commandCtx, ctx, worktree.Branch)
-		if err != nil {
-			relation = "?"
-		}
-
-		rows = append(rows, pickerRow{
-			branch:   worktree.Branch,
-			commit:   commits[ci],
-			path:     gitx.RelativePath(worktree.Path, fromPath),
-			state:    gitx.DirtyState(dirty),
-			relation: relation,
-			current:  worktree.Branch == currentBranch,
-		})
+		rows = append(rows, buildWorktreePickerRow(commandCtx, worktree, commits[ci], currentBranch, ctx, fromPath))
 		ci++
 	}
 
@@ -691,30 +678,7 @@ func PrintWorktreeList(commandCtx context.Context, entries []gitx.Worktree, curr
 
 	rows := make([]pickerRow, 0, len(entries))
 	for i, worktree := range entries {
-		m := ""
-		if worktree.Branch == ctx.DefaultBranch && worktree.Branch != currentBranch {
-			m = "^"
-		}
-
-		dirty, err := gitx.DirtySymbols(commandCtx, worktree.Path)
-		if err != nil {
-			dirty = "?"
-		}
-
-		relation, err := gitx.BranchRelation(commandCtx, ctx, worktree.Branch)
-		if err != nil {
-			relation = "?"
-		}
-
-		rows = append(rows, pickerRow{
-			branch:   worktree.Branch,
-			commit:   commits[i],
-			path:     gitx.RelativePath(worktree.Path, fromPath),
-			state:    gitx.DirtyState(dirty),
-			relation: relation,
-			current:  worktree.Branch == currentBranch,
-			marker:   m,
-		})
+		rows = append(rows, buildWorktreePickerRow(commandCtx, worktree, commits[i], currentBranch, ctx, fromPath))
 	}
 
 	l := capListCommitWidth(fitListLayout(computeLayout(rows)))
