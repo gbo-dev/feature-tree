@@ -32,10 +32,11 @@ func (s *Service) FetchAndCheckoutPRWithOptions(commandCtx context.Context, prNu
 	}
 
 	warnings := make([]string, 0, 1)
-	warning, err := s.ensureLocalRefUpdated(commandCtx, prInfo)
+	updatedSHA, warning, err := s.ensureLocalRefUpdated(commandCtx, prInfo.Number, prInfo.HeadSHA)
 	if err != nil {
 		return nil, err
 	}
+	prInfo.HeadSHA = updatedSHA
 	if strings.TrimSpace(warning) != "" {
 		warnings = append(warnings, warning)
 	}
@@ -87,36 +88,14 @@ func (s *Service) FetchAndCheckoutPRWithOptions(commandCtx context.Context, prNu
 		Warnings: warnings,
 	}, nil
 }
+
 func (s *Service) getPRInfo(commandCtx context.Context, prNumber int, usePRRef bool) (*PRInfo, error) {
-	refsToTry := []string{
-		fmt.Sprintf("refs/pull/%d/head", prNumber),
-		fmt.Sprintf("refs/pull/%d/merge", prNumber),
+	headSHA, err := s.resolvePRHeadSHA(commandCtx, prNumber)
+	if err != nil {
+		return nil, err
 	}
 
 	var headRef string
-	var headSHA string
-
-	for _, ref := range refsToTry {
-		stdout, _, exitCode, runErr := gitx.RunGitCommon(commandCtx, s.Ctx, "rev-parse", "--verify", ref)
-		if runErr == nil && exitCode == 0 {
-			headSHA = strings.TrimSpace(stdout)
-			break
-		}
-	}
-
-	if headSHA == "" {
-		_, stderr, exitCode, runErr := gitx.RunGitCommon(commandCtx, s.Ctx, "fetch", "origin", fmt.Sprintf("pull/%d/head:refs/pull/%d/head", prNumber, prNumber))
-		if err := gitx.CommandError("fetch PR ref", stderr, exitCode, runErr, "git fetch failed"); err != nil {
-			return nil, fmt.Errorf("failed to fetch PR #%d: %w", prNumber, err)
-		}
-
-		stdout, stderr, exitCode, runErr := gitx.RunGitCommon(commandCtx, s.Ctx, "rev-parse", "--verify", fmt.Sprintf("refs/pull/%d/head", prNumber))
-		if err := gitx.CommandError("resolve PR commit", stderr, exitCode, runErr, "git rev-parse failed"); err != nil {
-			return nil, fmt.Errorf("failed to resolve PR #%d commit: %w", prNumber, err)
-		}
-		headSHA = strings.TrimSpace(stdout)
-	}
-
 	if usePRRef {
 		headRef = fmt.Sprintf("pull/%d", prNumber)
 	} else {
@@ -125,27 +104,16 @@ func (s *Service) getPRInfo(commandCtx context.Context, prNumber int, usePRRef b
 
 	headRemote := s.findBranchNameBySHA(commandCtx, "refs/remotes/origin", headSHA, true)
 
-	stdout, _, _, runErr := gitx.RunGitCommon(commandCtx, s.Ctx, "log", "--oneline", "-1", headSHA)
-	title := strings.TrimSpace(stdout)
-	if runErr != nil {
-		title = fmt.Sprintf("PR #%d", prNumber)
+	title, err := s.resolvePRTitle(commandCtx, headSHA, prNumber)
+	if err != nil {
+		return nil, err
 	}
 
 	baseBranch := s.Ctx.DefaultBranch
-	baseSHA := ""
-
-	baseRefsToTry := []string{
+	baseSHA, _ := s.resolveSHAForRefs(commandCtx, []string{
 		fmt.Sprintf("refs/heads/%s", baseBranch),
 		fmt.Sprintf("refs/remotes/origin/%s", baseBranch),
-	}
-
-	for _, ref := range baseRefsToTry {
-		stdout, _, exitCode, runErr := gitx.RunGitCommon(commandCtx, s.Ctx, "rev-parse", "--verify", ref)
-		if runErr == nil && exitCode == 0 {
-			baseSHA = strings.TrimSpace(stdout)
-			break
-		}
-	}
+	})
 
 	return &PRInfo{
 		Number:     prNumber,
@@ -156,6 +124,52 @@ func (s *Service) getPRInfo(commandCtx context.Context, prNumber int, usePRRef b
 		BaseSHA:    baseSHA,
 		Title:      title,
 	}, nil
+}
+
+func (s *Service) resolvePRHeadSHA(commandCtx context.Context, prNumber int) (string, error) {
+	refsToTry := []string{
+		fmt.Sprintf("refs/pull/%d/head", prNumber),
+		fmt.Sprintf("refs/pull/%d/merge", prNumber),
+	}
+
+	if sha, ok := s.resolveSHAForRefs(commandCtx, refsToTry); ok {
+		return sha, nil
+	}
+
+	return s.fetchAndResolvePRHead(commandCtx, prNumber)
+}
+
+func (s *Service) resolveSHAForRefs(commandCtx context.Context, refs []string) (string, bool) {
+	for _, ref := range refs {
+		stdout, _, exitCode, runErr := gitx.RunGitCommon(commandCtx, s.Ctx, "rev-parse", "--verify", ref)
+		if runErr == nil && exitCode == 0 {
+			return strings.TrimSpace(stdout), true
+		}
+	}
+	return "", false
+}
+
+func (s *Service) fetchAndResolvePRHead(commandCtx context.Context, prNumber int) (string, error) {
+	ref := fmt.Sprintf("refs/pull/%d/head", prNumber)
+	_, stderr, exitCode, runErr := gitx.RunGitCommon(commandCtx, s.Ctx, "fetch", "origin", fmt.Sprintf("pull/%d/head:%s", prNumber, ref))
+	if err := gitx.CommandError("fetch PR ref", stderr, exitCode, runErr, "git fetch failed"); err != nil {
+		return "", fmt.Errorf("failed to fetch PR #%d: %w", prNumber, err)
+	}
+
+	stdout, stderr, exitCode, runErr := gitx.RunGitCommon(commandCtx, s.Ctx, "rev-parse", "--verify", ref)
+	if err := gitx.CommandError("resolve PR commit", stderr, exitCode, runErr, "git rev-parse failed"); err != nil {
+		return "", fmt.Errorf("failed to resolve PR #%d commit: %w", prNumber, err)
+	}
+	return strings.TrimSpace(stdout), nil
+}
+
+func (s *Service) resolvePRTitle(commandCtx context.Context, headSHA string, prNumber int) (string, error) {
+	stdout, _, _, runErr := gitx.RunGitCommon(commandCtx, s.Ctx, "log", "--oneline", "-1", headSHA)
+	title := strings.TrimSpace(stdout)
+	if runErr != nil {
+		title = fmt.Sprintf("PR #%d", prNumber)
+	}
+	return title, nil
 }
 
 func (s *Service) ensurePRBranchTracking(commandCtx context.Context, localBranch string, remoteBranch string) error {
@@ -198,13 +212,13 @@ func (s *Service) syncLocalPRBranchToHead(commandCtx context.Context, localBranc
 	return nil
 }
 
-func (s *Service) ensureLocalRefUpdated(commandCtx context.Context, prInfo *PRInfo) (string, error) {
-	ref := fmt.Sprintf("refs/pull/%d/head", prInfo.Number)
+func (s *Service) ensureLocalRefUpdated(commandCtx context.Context, prNumber int, fallbackSHA string) (string, string, error) {
+	ref := fmt.Sprintf("refs/pull/%d/head", prNumber)
 
 	stdout, _, exitCode, runErr := gitx.RunGitCommon(commandCtx, s.Ctx, "rev-parse", "--verify", ref)
-	currentSHA := ""
+	cachedSHA := ""
 	if runErr == nil && exitCode == 0 {
-		currentSHA = strings.TrimSpace(stdout)
+		cachedSHA = strings.TrimSpace(stdout)
 	}
 
 	_, stderr, exitCode, runErr := gitx.RunGitCommon(
@@ -212,23 +226,23 @@ func (s *Service) ensureLocalRefUpdated(commandCtx context.Context, prInfo *PRIn
 		s.Ctx,
 		"fetch",
 		"origin",
-		fmt.Sprintf("pull/%d/head:%s", prInfo.Number, ref),
+		fmt.Sprintf("pull/%d/head:%s", prNumber, ref),
 	)
 	if err := gitx.CommandError("update PR ref", stderr, exitCode, runErr, "git fetch failed"); err != nil {
-		if currentSHA != "" {
-			prInfo.HeadSHA = currentSHA
-			return fmt.Sprintf("failed to update PR #%d from origin; using cached ref %s", prInfo.Number, ref), nil
+		if cachedSHA != "" {
+			return cachedSHA, fmt.Sprintf("failed to update PR #%d from origin; using cached ref %s", prNumber, ref), nil
 		}
-		return "", fmt.Errorf("failed to update PR #%d: %w", prInfo.Number, err)
+		if fallbackSHA != "" {
+			return fallbackSHA, fmt.Sprintf("failed to update PR #%d from origin; using cached ref %s", prNumber, ref), nil
+		}
+		return "", "", fmt.Errorf("failed to update PR #%d: %w", prNumber, err)
 	}
 
 	stdout, stderr, exitCode, runErr = gitx.RunGitCommon(commandCtx, s.Ctx, "rev-parse", "--verify", ref)
 	if err := gitx.CommandError("resolve updated PR commit", stderr, exitCode, runErr, "git rev-parse failed"); err != nil {
-		return "", fmt.Errorf("failed to resolve PR #%d commit: %w", prInfo.Number, err)
+		return "", "", fmt.Errorf("failed to resolve PR #%d commit: %w", prNumber, err)
 	}
-	prInfo.HeadSHA = strings.TrimSpace(stdout)
-
-	return "", nil
+	return strings.TrimSpace(stdout), "", nil
 }
 
 func (s *Service) resolvePRBranchName(commandCtx context.Context, prNumber int, headSHA string) string {
