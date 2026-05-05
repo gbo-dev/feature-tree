@@ -48,9 +48,12 @@ func newCreateCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				current, _ := gitx.CurrentBranch(cmd.Context(), "")
+			current, err := gitx.CurrentBranch(cmd.Context(), "")
+			if err != nil {
+				return fmt.Errorf("cannot infer branch from detached HEAD")
+			}
 
-				if term.IsTerminal(int(os.Stdin.Fd())) {
+			if term.IsTerminal(int(os.Stdin.Fd())) {
 					picked, pickErr := tui.PickCreateBranch(cmd.Context(), entries, current, svc.Ctx, includeAllBranches)
 					if pickErr != nil {
 						if errors.Is(pickErr, tui.ErrSelectionCancelled) {

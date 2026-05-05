@@ -18,8 +18,6 @@ import (
 
 var ErrSelectionCancelled = errors.New("selection cancelled")
 
-const ansiBold = "\x1b[1m"
-
 const (
 	ansiPromptSwitch = "\x1b[38;2;135;135;255m"
 	ansiPromptCreate = "\x1b[38;2;127;212;255m"
@@ -493,7 +491,7 @@ func pickerHeader(branchWidth int, cols []headerCol) string {
 	branchTitle := cols[0].title
 	pad := branchWidth - len(branchTitle) + 2
 
-	line := uiansi.Grey + ansiBold + "  " + branchTitle + strings.Repeat(" ", pad)
+	line := uiansi.Grey + uiansi.Bold + "  " + branchTitle + strings.Repeat(" ", pad)
 	for _, col := range cols[1:] {
 		if col.width > len(col.title) {
 			line += col.title + strings.Repeat(" ", col.width-len(col.title)) + "  "

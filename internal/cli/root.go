@@ -8,8 +8,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const ansiBold = "\x1b[1m"
-
 func ExecuteContext(ctx context.Context) error {
 	root := newRootCmd()
 	return root.ExecuteContext(ctx)
@@ -73,7 +71,7 @@ var helpTemplate = fmt.Sprintf(`%s%sft%s (feature-tree) – lightweight git work
   - Tab completion includes branch/worktree names for switch/create and --base.
   - init prints the ft() wrapper for auto-cd; completion prints completion definitions only.
 `,
-	ansiBold, uiansi.InfoPurple, uiansi.Reset,
+	uiansi.Bold, uiansi.InfoPurple, uiansi.Reset,
 	uiansi.InfoPurple, uiansi.Reset,
 	uiansi.Periwinkle, uiansi.Reset,
 	uiansi.Periwinkle, uiansi.Reset,
@@ -91,15 +89,21 @@ var helpTemplate = fmt.Sprintf(`%s%sft%s (feature-tree) – lightweight git work
 
 func renderRootOverview(cmd *cobra.Command) error {
 	w := cmd.OutOrStdout()
+	writef := func(format string, args ...any) error {
+		if _, err := fmt.Fprintf(w, format, args...); err != nil {
+			return fmt.Errorf("write overview output: %w", err)
+		}
+		return nil
+	}
 
-	if _, err := fmt.Fprintf(w, "%s%sft%s (feature-tree) – lightweight git worktree helper\n\n", ansiBold, uiansi.InfoPurple, uiansi.Reset); err != nil {
-		return fmt.Errorf("write overview output: %w", err)
+	if err := writef("%s%sft%s (feature-tree) – lightweight git worktree helper\n\n", uiansi.Bold, uiansi.InfoPurple, uiansi.Reset); err != nil {
+		return err
 	}
-	if _, err := fmt.Fprintf(w, "%sUsage:%s\n", uiansi.InfoPurple, uiansi.Reset); err != nil {
-		return fmt.Errorf("write overview output: %w", err)
+	if err := writef("%sUsage:%s\n", uiansi.InfoPurple, uiansi.Reset); err != nil {
+		return err
 	}
-	if _, err := fmt.Fprintf(w, "  %sft%s <command> [flags]\n\n", uiansi.Periwinkle, uiansi.Reset); err != nil {
-		return fmt.Errorf("write overview output: %w", err)
+	if err := writef("  %sft%s <command> [flags]\n\n", uiansi.Periwinkle, uiansi.Reset); err != nil {
+		return err
 	}
 
 	visibleCommands := make([]*cobra.Command, 0, len(cmd.Commands()))
@@ -114,17 +118,17 @@ func renderRootOverview(cmd *cobra.Command) error {
 		}
 	}
 
-	if _, err := fmt.Fprintf(w, "%sAvailable Commands:%s\n", uiansi.InfoPurple, uiansi.Reset); err != nil {
-		return fmt.Errorf("write overview output: %w", err)
+	if err := writef("%sAvailable Commands:%s\n", uiansi.InfoPurple, uiansi.Reset); err != nil {
+		return err
 	}
 	for _, sub := range visibleCommands {
-		if _, err := fmt.Fprintf(w, "  %s%-*s%s  %s\n", uiansi.Periwinkle, maxNameWidth, sub.Name(), uiansi.Reset, sub.Short); err != nil {
-			return fmt.Errorf("write overview output: %w", err)
+		if err := writef("  %s%-*s%s  %s\n", uiansi.Periwinkle, maxNameWidth, sub.Name(), uiansi.Reset, sub.Short); err != nil {
+			return err
 		}
 	}
 
-	if _, err := fmt.Fprintf(w, "\nRun %sft --help%s for full details.\n", uiansi.Periwinkle, uiansi.Reset); err != nil {
-		return fmt.Errorf("write overview output: %w", err)
+	if err := writef("\nRun %sft --help%s for full details.\n", uiansi.Periwinkle, uiansi.Reset); err != nil {
+		return err
 	}
 
 	return nil

@@ -2,6 +2,7 @@ package uiansi
 
 const (
 	Reset = "\x1b[0m"
+	Bold  = "\x1b[1m"
 
 	Grey       = "\x1b[38;5;244m"
 	Green      = "\x1b[38;5;114m"
