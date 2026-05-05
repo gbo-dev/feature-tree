@@ -69,6 +69,9 @@ func buildSwitchPreviewCache(commandCtx context.Context, repoCtx *gitx.RepoConte
 		workers = 1
 	}
 
+	ctx, cancel := context.WithCancel(commandCtx)
+	defer cancel()
+
 	jobs := make(chan switchPreviewBuildJob)
 	results := make(chan switchPreviewBuildResult, len(rows))
 
@@ -78,8 +81,15 @@ func buildSwitchPreviewCache(commandCtx context.Context, repoCtx *gitx.RepoConte
 		go func() {
 			defer wg.Done()
 			for job := range jobs {
-				paths, rowErr := buildSwitchPreviewRowCache(commandCtx, repoCtx, tmpDir, job)
-				results <- switchPreviewBuildResult{branch: job.row.branch, paths: paths, err: rowErr}
+				if ctx.Err() != nil {
+					return
+				}
+				paths, rowErr := buildSwitchPreviewRowCache(ctx, repoCtx, tmpDir, job)
+				select {
+				case results <- switchPreviewBuildResult{branch: job.row.branch, paths: paths, err: rowErr}:
+				case <-ctx.Done():
+					return
+				}
 			}
 		}()
 	}
@@ -96,6 +106,7 @@ func buildSwitchPreviewCache(commandCtx context.Context, repoCtx *gitx.RepoConte
 	cache := make(map[string]switchPreviewTabPaths, len(rows))
 	for result := range results {
 		if result.err != nil {
+			cancel()
 			cleanup()
 			return nil, func() {}, result.err
 		}
