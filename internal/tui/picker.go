@@ -257,7 +257,10 @@ func PickSwitchBranch(commandCtx context.Context, entries []gitx.Worktree, curre
 	for i, worktree := range entries {
 		branches[i] = worktree.Branch
 	}
-	commits := gitx.FetchCommitsParallel(commandCtx, ctx, branches)
+	commits, err := gitx.FetchCommitsParallel(commandCtx, ctx, branches)
+	if err != nil {
+		return "", err
+	}
 
 	fromPath := currentWorktreePath(entries, currentBranch)
 
@@ -358,7 +361,10 @@ func PickCreateBranch(commandCtx context.Context, entries []gitx.Worktree, curre
 	}
 
 	if len(commitByBranch) == 0 {
-		commits := gitx.FetchCommitsParallel(commandCtx, ctx, branches)
+		commits, err := gitx.FetchCommitsParallel(commandCtx, ctx, branches)
+		if err != nil {
+			return "", err
+		}
 		for i, branch := range branches {
 			commitByBranch[branch] = commits[i]
 		}
@@ -431,7 +437,10 @@ func PickRemoveBranch(commandCtx context.Context, entries []gitx.Worktree, curre
 			branches = append(branches, worktree.Branch)
 		}
 	}
-	commits := gitx.FetchCommitsParallel(commandCtx, ctx, branches)
+	commits, err := gitx.FetchCommitsParallel(commandCtx, ctx, branches)
+	if err != nil {
+		return "", err
+	}
 
 	fromPath := currentWorktreePath(entries, currentBranch)
 
@@ -675,7 +684,10 @@ func PrintWorktreeList(commandCtx context.Context, entries []gitx.Worktree, curr
 	for i, worktree := range entries {
 		branches[i] = worktree.Branch
 	}
-	commits := gitx.FetchCommitsParallel(commandCtx, ctx, branches)
+	commits, err := gitx.FetchCommitsParallel(commandCtx, ctx, branches)
+	if err != nil {
+		return err
+	}
 
 	fromPath := currentWorktreePath(entries, currentBranch)
 

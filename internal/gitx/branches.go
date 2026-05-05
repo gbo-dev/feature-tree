@@ -111,7 +111,10 @@ func listLocalBranchSnapshotsFallback(commandCtx context.Context, ctx *RepoConte
 		return nil, err
 	}
 
-	commits := FetchCommitsParallel(commandCtx, ctx, branches)
+	commits, err := FetchCommitsParallel(commandCtx, ctx, branches)
+	if err != nil {
+		return nil, err
+	}
 	relations := FetchBranchRelationsParallel(commandCtx, ctx, branches)
 
 	snapshots := make([]LocalBranchSnapshot, 0, len(branches))
