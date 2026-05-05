@@ -41,11 +41,15 @@ func RunGitCommon(commandCtx context.Context, repoCtx *RepoContext, args ...stri
 }
 
 func runCommand(commandCtx context.Context, dir string, name string, args ...string) (stdout string, stderr string, exitCode int, err error) {
+	return runCommandWithTimeout(commandCtx, dir, name, defaultCommandTimeout, args...)
+}
+
+func runCommandWithTimeout(commandCtx context.Context, dir string, name string, timeout time.Duration, args ...string) (stdout string, stderr string, exitCode int, err error) {
 	if err := requireCommandContext(commandCtx); err != nil {
 		return "", "", -1, err
 	}
 
-	ctx, cancel := context.WithTimeout(commandCtx, defaultCommandTimeout)
+	ctx, cancel := context.WithTimeout(commandCtx, timeout)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, name, args...)
@@ -67,10 +71,10 @@ func runCommand(commandCtx context.Context, dir string, name string, args ...str
 	}
 
 	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-		return out, errText, -1, fmt.Errorf("%s timed out after %s", name, defaultCommandTimeout)
+		return out, errText, -1, fmt.Errorf("%s timed out after %s: %w", name, timeout, ctx.Err())
 	}
 	if errors.Is(ctx.Err(), context.Canceled) {
-		return out, errText, -1, fmt.Errorf("%s canceled", name)
+		return out, errText, -1, fmt.Errorf("%s canceled: %w", name, ctx.Err())
 	}
 
 	var exitErr *exec.ExitError
@@ -110,40 +114,30 @@ func FetchOrigin(commandCtx context.Context, ctx *RepoContext) error {
 		return fmt.Errorf("fetch failed: missing repository context")
 	}
 
-	fetchCtx, cancel := context.WithTimeout(commandCtx, fetchTimeout)
-	defer cancel()
-
 	fullArgs := append([]string{"--git-dir", ctx.GitCommonDir}, "fetch", "origin")
-	cmd := exec.CommandContext(fetchCtx, "git", fullArgs...)
-	if dir := strings.TrimSpace(ctx.RepoRoot); dir != "" {
-		cmd.Dir = dir
-	}
-
-	var errBuf bytes.Buffer
-	cmd.Stderr = &errBuf
-
-	runErr := cmd.Run()
-	if runErr == nil {
-		return nil
-	}
-
-	if errors.Is(runErr, context.DeadlineExceeded) {
-		return fmt.Errorf("fetch failed: timed out after %s", fetchTimeout)
-	}
-	if errors.Is(runErr, context.Canceled) {
-		return nil
-	}
-
-	var exitErr *exec.ExitError
-	if errors.As(runErr, &exitErr) {
-		errText := strings.TrimSpace(errBuf.String())
-		if errText != "" {
-			return fmt.Errorf("fetch failed: %s", errText)
+	workingDir := strings.TrimSpace(ctx.RepoRoot)
+	_, stderr, exitCode, runErr := runCommandWithTimeout(commandCtx, workingDir, "git", fetchTimeout, fullArgs...)
+	if runErr != nil {
+		if errors.Is(runErr, context.DeadlineExceeded) {
+			return fmt.Errorf("fetch failed: timed out after %s", fetchTimeout)
 		}
-		return fmt.Errorf("fetch failed: exit code %d", exitErr.ExitCode())
+		if errors.Is(runErr, context.Canceled) {
+			return nil
+		}
+		stderr = strings.TrimSpace(stderr)
+		if stderr != "" {
+			return fmt.Errorf("fetch failed: %s", stderr)
+		}
+		return fmt.Errorf("fetch failed: %w", runErr)
 	}
-
-	return fmt.Errorf("fetch failed: %w", runErr)
+	if exitCode != 0 {
+		stderr = strings.TrimSpace(stderr)
+		if stderr != "" {
+			return fmt.Errorf("fetch failed: %s", stderr)
+		}
+		return fmt.Errorf("fetch failed: exit code %d", exitCode)
+	}
+	return nil
 }
 
 func ExpectSuccess(action string, stdout string, stderr string, exitCode int, err error, fallback string) (string, error) {
