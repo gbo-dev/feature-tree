@@ -15,7 +15,7 @@ type SquashResult struct {
 	Branch string
 }
 
-func (s *Service) SquashBranch(commandCtx context.Context, baseBranch string) (*SquashResult, error) {
+func (s *Service) SquashBranch(commandCtx context.Context, baseBranch string) (res *SquashResult, err error) {
 	if commandCtx == nil {
 		return nil, fmt.Errorf("missing command context")
 	}
@@ -24,7 +24,7 @@ func (s *Service) SquashBranch(commandCtx context.Context, baseBranch string) (*
 	if strings.TrimSpace(base) == "" {
 		base = s.Ctx.DefaultBranch
 	}
-	base, err := s.ResolveBranchShortcut(commandCtx, base)
+	base, err = s.ResolveBranchShortcut(commandCtx, base)
 	if err != nil {
 		return nil, err
 	}
