@@ -52,13 +52,13 @@ func (s *Service) CopyIncludeBetweenBranches(commandCtx context.Context, fromBra
 		}
 	}()
 
-	if err := copyIncludePatterns(includeManifestFile, sourceWorktreePath, destinationWorktreePath); err != nil {
+	if err := copyIncludePatterns(includeManifestFile, includeManifestPath, sourceWorktreePath, destinationWorktreePath); err != nil {
 		return err
 	}
 	return nil
 }
 
-func copyIncludePatterns(manifest io.Reader, sourceWorktreePath string, destinationWorktreePath string) error {
+func copyIncludePatterns(manifest io.Reader, manifestPath string, sourceWorktreePath string, destinationWorktreePath string) error {
 	scanner := bufio.NewScanner(manifest)
 	for scanner.Scan() {
 		raw := scanner.Text()
@@ -94,7 +94,7 @@ func copyIncludePatterns(manifest io.Reader, sourceWorktreePath string, destinat
 	}
 
 	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("read include file: %w", err)
+		return fmt.Errorf("read include file %s: %w", manifestPath, err)
 	}
 	return nil
 }
