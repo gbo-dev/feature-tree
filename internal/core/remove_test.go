@@ -182,4 +182,3 @@ func TestWorktreeUpstreamRefOutsideRepoReturnsError(t *testing.T) {
 		t.Fatalf("worktreeUpstreamRef error = %q, expected upstream resolution context", err.Error())
 	}
 }
-
