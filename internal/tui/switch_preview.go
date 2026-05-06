@@ -72,7 +72,7 @@ func buildSwitchPreviewCache(commandCtx context.Context, repoCtx *gitx.RepoConte
 	ctx, cancel := context.WithCancel(commandCtx)
 	defer cancel()
 
-	jobs := make(chan switchPreviewBuildJob)
+	jobs := make(chan switchPreviewBuildJob, len(rows))
 	results := make(chan switchPreviewBuildResult, len(rows))
 
 	var wg sync.WaitGroup
