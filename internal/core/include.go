@@ -52,7 +52,14 @@ func (s *Service) CopyIncludeBetweenBranches(commandCtx context.Context, fromBra
 		}
 	}()
 
-	scanner := bufio.NewScanner(includeManifestFile)
+	if err := copyIncludePatterns(includeManifestFile, sourceWorktreePath, destinationWorktreePath); err != nil {
+		return err
+	}
+	return nil
+}
+
+func copyIncludePatterns(manifest io.Reader, sourceWorktreePath string, destinationWorktreePath string) error {
+	scanner := bufio.NewScanner(manifest)
 	for scanner.Scan() {
 		raw := scanner.Text()
 		pattern := raw
@@ -87,9 +94,8 @@ func (s *Service) CopyIncludeBetweenBranches(commandCtx context.Context, fromBra
 	}
 
 	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("read include file %s: %w", includeManifestPath, err)
+		return fmt.Errorf("read include file: %w", err)
 	}
-
 	return nil
 }
 
@@ -115,38 +121,42 @@ func copyPreservingShape(src string, dst string) error {
 	}
 
 	if info.IsDir() {
-		return filepath.WalkDir(src, func(path string, d fs.DirEntry, walkErr error) error {
-			if walkErr != nil {
-				return walkErr
-			}
-
-			rel, err := filepath.Rel(src, path)
-			if err != nil {
-				return err
-			}
-			target := dst
-			if rel != "." {
-				target = filepath.Join(dst, rel)
-			}
-
-			if d.IsDir() {
-				return os.MkdirAll(target, 0o755)
-			}
-
-			if d.Type()&os.ModeSymlink != 0 {
-				lnk, err := os.Readlink(path)
-				if err != nil {
-					return err
-				}
-				_ = os.Remove(target)
-				return os.Symlink(lnk, target)
-			}
-
-			return copyFile(path, target)
-		})
+		return copyDirPreservingShape(src, dst)
 	}
 
 	return copyFile(src, dst)
+}
+
+func copyDirPreservingShape(src string, dst string) error {
+	return filepath.WalkDir(src, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		target := dst
+		if rel != "." {
+			target = filepath.Join(dst, rel)
+		}
+
+		if d.IsDir() {
+			return os.MkdirAll(target, 0o755)
+		}
+
+		if d.Type()&os.ModeSymlink != 0 {
+			lnk, err := os.Readlink(path)
+			if err != nil {
+				return err
+			}
+			_ = os.Remove(target)
+			return os.Symlink(lnk, target)
+		}
+
+		return copyFile(path, target)
+	})
 }
 
 func copyFile(src string, dst string) (err error) {
