@@ -17,7 +17,7 @@ import (
 const (
 	maxSwitchPreviewWorkers = 6
 	switchLogLimit          = 30
-	switchLogAgeWidth       = 12
+	switchLogAgeWidth       = 8
 )
 
 type switchPreviewTabPaths struct {
@@ -551,29 +551,26 @@ func compactRelativeAge(age string) string {
 		{"about a ", "1 "},
 		{"an ", "1 "},
 		{"a ", "1 "},
-		{" seconds ago", " sec ago"},
-		{" second ago", " sec ago"},
-		{" minutes ago", " min ago"},
-		{" minute ago", " min ago"},
-		{" hours ago", " hr ago"},
-		{" hour ago", " hr ago"},
-		{" days ago", " day ago"},
-		{" day ago", " day ago"},
-		{" weeks ago", " wk ago"},
-		{" week ago", " wk ago"},
-		{" months ago", " mo ago"},
-		{" month ago", " mo ago"},
-		{" years ago", " yr ago"},
-		{" year ago", " yr ago"},
+		{" seconds ago", " s"},
+		{" second ago", " s"},
+		{" minutes ago", " min"},
+		{" minute ago", " min"},
+		{" hours ago", " h"},
+		{" hour ago", " h"},
+		{" days ago", " day"},
+		{" day ago", " day"},
+		{" weeks ago", " wk"},
+		{" week ago", " wk"},
+		{" months ago", " mo"},
+		{" month ago", " mo"},
+		{" years ago", " yr"},
+		{" year ago", " yr"},
 	}
 
 	for _, replacement := range replacements {
 		age = strings.Replace(age, replacement.from, replacement.to, 1)
 	}
 
-	if textwidth.Width(age) > switchLogAgeWidth && strings.HasSuffix(age, " ago") {
-		age = strings.TrimSuffix(age, " ago")
-	}
 	if textwidth.Width(age) > switchLogAgeWidth {
 		age = textwidth.Truncate(age, switchLogAgeWidth)
 	}
