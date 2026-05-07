@@ -71,9 +71,11 @@ repo/
 
 ### `ft pr <num>`
 
-- Fetches PR refs from `origin` and creates/switches to worktree branch `pull/<num>`.
+- Fetches PR refs from `origin` and creates/switches to a worktree for the PR.
+- By default, tries to use the real branch name (resolved from the PR head SHA via `refs/heads` or `refs/remotes/origin`), falling back to `pull/<num>` if no matching branch name is found.
 - Reuses the worktree if it already exists.
-- Useful for quickly checking out PRs without disturbing current branch worktree.
+- Flags:
+  - `--use-pr-ref`: force `pull/<num>` as the branch/worktree name instead of resolving the real branch name
 
 ### `ft copy-include [--from <branch>] [--to <branch>]`
 
@@ -121,6 +123,7 @@ repo/
 ### `ft init [bash|zsh]`
 
 - Prints shell wrapper that enables automatic `cd` after `ft switch`, `ft create`, and `ft pr`.
+- If no shell argument is given, auto-detects from the `$SHELL` environment variable (defaults to zsh if undetected).
 - Add once to shell config, or copy output of `ft init <shell>` directly to `.bashrc`/`.zshrc`:
 
 ```sh
