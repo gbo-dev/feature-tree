@@ -106,11 +106,11 @@ func TestCompactRelativeAge(t *testing.T) {
 		in   string
 		want string
 	}{
-		{in: "5 minutes ago", want: "5 min ago"},
-		{in: "about an hour ago", want: "1 hr ago"},
-		{in: "2 hours ago", want: "2 hr ago"},
-		{in: "1 second ago", want: "1 sec ago"},
-		{in: "3 days ago", want: "3 day ago"},
+		{in: "5 minutes ago", want: "5 min"},
+		{in: "about an hour ago", want: "1 h"},
+		{in: "2 hours ago", want: "2 h"},
+		{in: "1 second ago", want: "1 s"},
+		{in: "3 days ago", want: "3 day"},
 	}
 
 	for _, tc := range tests {
