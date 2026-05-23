@@ -251,7 +251,7 @@ func (s *Service) ensureWorktreeSafeToRemove(commandCtx context.Context, path st
 		if safe {
 			return nil
 		}
-		return fmt.Errorf("branch %q has no upstream tracking branch and differs from %s; push first, or use --force-worktree", branch, targetRef)
+		return fmt.Errorf("branch %q has no upstream tracking branch and differs from %s\nPush first, or use --force-worktree", branch, targetRef)
 	}
 
 	ahead, stderr, exitCode, runErr := gitx.RunGit(commandCtx, path, "rev-list", "--count", upstream+"..HEAD")
@@ -272,7 +272,7 @@ func (s *Service) ensureWorktreeSafeToRemove(commandCtx context.Context, path st
 		if safe {
 			return nil
 		}
-		return fmt.Errorf("branch %q has commits not pushed to %s; push first, or use --force-worktree", branch, upstream)
+		return fmt.Errorf("branch %q has commits not pushed to %s\nPush first, or use --force-worktree", branch, upstream)
 	}
 
 	return nil
