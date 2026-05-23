@@ -583,22 +583,24 @@ func runFZF(lines []string, prompt string, extraArgs ...string) (string, error) 
 	}
 }
 
-// buildRowPrefix renders list/picker row markers: @ current, ^ default branch, ~ branch/path mismatch.
+// buildRowPrefix renders list/picker row markers in two fixed slots:
+// gap (~ branch/path mismatch or space), then status (@ current, ^ default branch, or space).
 func buildRowPrefix(row pickerRow) string {
-	var markers strings.Builder
+	var b strings.Builder
+	if row.branchMismatch {
+		b.WriteString(uiansi.Yellow + "~" + uiansi.Reset)
+	} else {
+		b.WriteString(" ")
+	}
 	switch {
 	case row.current:
-		markers.WriteString(uiansi.Green + "@" + uiansi.Reset)
+		b.WriteString(uiansi.Green + "@" + uiansi.Reset)
 	case row.marker == "^":
-		markers.WriteString(uiansi.Periwinkle + "^" + uiansi.Reset)
+		b.WriteString(uiansi.Periwinkle + "^" + uiansi.Reset)
+	default:
+		b.WriteString(" ")
 	}
-	if row.branchMismatch {
-		markers.WriteString(uiansi.Yellow + "~" + uiansi.Reset)
-	}
-	if markers.Len() == 0 {
-		return "  "
-	}
-	return markers.String() + " "
+	return b.String()
 }
 
 // buildFZFLines emits "display\tbranch[\thidden...]". The hidden payload fields
