@@ -43,16 +43,7 @@ func TestEnsureWorktreeSafeToRemoveRejectsDirtyWorktree(t *testing.T) {
 func TestRemoveWorktreeFromInsideTargetWorktree(t *testing.T) {
 	svc, featurePath, branch := setupServiceWithFeatureWorktree(t)
 
-	originalWD, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getwd failed: %v", err)
-	}
-	if err := os.Chdir(featurePath); err != nil {
-		t.Fatalf("chdir to feature worktree failed: %v", err)
-	}
-	t.Cleanup(func() {
-		_ = os.Chdir(originalWD)
-	})
+	testutil.Chdir(t, featurePath)
 
 	result, err := svc.RemoveWorktree(context.Background(), branch, false, false, false)
 	if err != nil {

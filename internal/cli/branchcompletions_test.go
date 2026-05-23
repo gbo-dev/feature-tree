@@ -2,26 +2,16 @@ package cli
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"testing"
 
+	"github.com/gbo-dev/feature-tree/internal/testutil"
 	"github.com/spf13/cobra"
 )
 
 func TestCompleteCreateBranchesExcludesShortcutTokens(t *testing.T) {
 	_, mainWorktreePath := setupCLIRepo(t)
 
-	originalWD, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getwd failed: %v", err)
-	}
-	if err := os.Chdir(mainWorktreePath); err != nil {
-		t.Fatalf("chdir failed: %v", err)
-	}
-	t.Cleanup(func() {
-		_ = os.Chdir(originalWD)
-	})
+	testutil.Chdir(t, mainWorktreePath)
 
 	cmd := &cobra.Command{}
 	cmd.SetContext(context.Background())
@@ -39,12 +29,12 @@ func TestCompleteCreateBranchesExcludesShortcutTokens(t *testing.T) {
 
 	mainSeen := false
 	for _, candidate := range got {
-		if candidate == filepath.Base(mainWorktreePath) {
+		if candidate == "main" {
 			mainSeen = true
 			break
 		}
 	}
 	if !mainSeen {
-		t.Fatalf("expected create completion to include existing branch %q; candidates=%v", filepath.Base(mainWorktreePath), got)
+		t.Fatalf("expected create completion to include existing branch %q; candidates=%v", "main", got)
 	}
 }
