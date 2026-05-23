@@ -42,6 +42,7 @@ repo/
 - Markers:
   - `@` = current branch worktree
   - `^` = default branch worktree
+  - `~` = worktree directory does not match checked-out branch (e.g. after manual `git checkout` in that directory)
 - `STATE` values:
   - `clean` or `dirty` with symbols
   - `+` staged, `!` unstaged, `?` untracked (combined when multiple apply)

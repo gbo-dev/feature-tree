@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/gbo-dev/feature-tree/internal/gitx"
@@ -83,6 +84,18 @@ func SanitizeBranchName(branch string) string {
 	branch = strings.ReplaceAll(branch, "/", "-")
 	branch = strings.ReplaceAll(branch, "\\", "-")
 	return branch
+}
+
+// WorktreeBranchPathMismatch reports when an ft-layout worktree directory no
+// longer matches its checked-out branch (direct child of repoRoot only).
+func WorktreeBranchPathMismatch(repoRoot string, wt gitx.Worktree) bool {
+	if repoRoot == "" || wt.Path == "" || wt.Branch == "" {
+		return false
+	}
+	if filepath.Dir(wt.Path) != repoRoot {
+		return false
+	}
+	return SanitizeBranchName(wt.Branch) != filepath.Base(wt.Path)
 }
 
 func FindWorktreePath(worktrees []gitx.Worktree, branch string) string {
