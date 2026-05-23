@@ -299,6 +299,178 @@ func TestFetchAndCheckoutPRFailsOnBranchNameCollision(t *testing.T) {
 	}
 }
 
+func TestFetchAndCheckoutPRAdvancesExistingBranchFromCachedPRHead(t *testing.T) {
+	base := t.TempDir()
+	source := filepath.Join(base, "source")
+	testutil.InitRepoWithMain(t, source)
+
+	featureBranch := "feature-pr-advance"
+	testutil.RunGit(t, source, "checkout", "-b", featureBranch)
+
+	prFile := filepath.Join(source, "advance-file.txt")
+	if err := os.WriteFile(prFile, []byte("v1\n"), 0o644); err != nil {
+		t.Fatalf("write advance file: %v", err)
+	}
+	testutil.RunGit(t, source, "add", "advance-file.txt")
+	testutil.RunGit(t, source, "commit", "-m", "advance v1")
+	testutil.RunGit(t, source, "checkout", "main")
+
+	remote := filepath.Join(base, "origin.git")
+	testutil.RunGit(t, "", "clone", "--bare", source, remote)
+
+	target := filepath.Join(base, "repo")
+	cloneResult, err := gitx.CloneRepo(context.Background(), remote, target)
+	if err != nil {
+		t.Fatalf("CloneRepo failed: %v", err)
+	}
+
+	prNumber := 606
+	v1SHA := testutil.RunGit(t, source, "rev-parse", "--verify", featureBranch)
+	testutil.RunGit(t, "", "--git-dir", remote, "update-ref", fmt.Sprintf("refs/pull/%d/head", prNumber), v1SHA)
+
+	svc := &Service{
+		Ctx: &gitx.RepoContext{
+			RepoRoot:      cloneResult.RepoRoot,
+			GitCommonDir:  cloneResult.GitCommonDir,
+			DefaultBranch: cloneResult.DefaultBranch,
+			IncludeFile:   ".worktreeinclude",
+		},
+		prMetadataResolver: func(context.Context, int) (PRMetadata, error) {
+			return PRMetadata{HeadRefName: featureBranch}, nil
+		},
+	}
+
+	first, err := svc.FetchAndCheckoutPRWithOptions(context.Background(), prNumber, PRCheckoutOptions{})
+	if err != nil {
+		t.Fatalf("first FetchAndCheckoutPRWithOptions returned error: %v", err)
+	}
+	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "worktree", "remove", "--force", first.Path)
+
+	testutil.RunGit(t, source, "checkout", featureBranch)
+	if err := os.WriteFile(prFile, []byte("v2\n"), 0o644); err != nil {
+		t.Fatalf("write updated advance file: %v", err)
+	}
+	testutil.RunGit(t, source, "add", "advance-file.txt")
+	testutil.RunGit(t, source, "commit", "-m", "advance v2")
+	v2SHA := testutil.RunGit(t, source, "rev-parse", "--verify", featureBranch)
+	testutil.RunGit(t, source, "push", remote, featureBranch)
+	testutil.RunGit(t, "", "--git-dir", remote, "update-ref", fmt.Sprintf("refs/pull/%d/head", prNumber), v2SHA)
+
+	second, err := svc.FetchAndCheckoutPRWithOptions(context.Background(), prNumber, PRCheckoutOptions{})
+	if err != nil {
+		t.Fatalf("second FetchAndCheckoutPRWithOptions returned error: %v", err)
+	}
+	if !second.Created {
+		t.Fatalf("second FetchAndCheckoutPRWithOptions Created = false, want true")
+	}
+
+	branchSHA := testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "rev-parse", "--verify", "refs/heads/"+featureBranch)
+	if branchSHA != v2SHA {
+		t.Fatalf("refs/heads/%s = %q, want advanced PR head %q", featureBranch, branchSHA, v2SHA)
+	}
+}
+
+func TestFetchAndCheckoutPRHintsWhenMetadataUnavailable(t *testing.T) {
+	base := t.TempDir()
+	source := filepath.Join(base, "source")
+	testutil.InitRepoWithMain(t, source)
+
+	featureBranch := "feature-metadata-unavailable"
+	testutil.RunGit(t, source, "checkout", "-b", featureBranch)
+	metadataFile := filepath.Join(source, "metadata-file.txt")
+	if err := os.WriteFile(metadataFile, []byte("metadata\n"), 0o644); err != nil {
+		t.Fatalf("write metadata file: %v", err)
+	}
+	testutil.RunGit(t, source, "add", "metadata-file.txt")
+	testutil.RunGit(t, source, "commit", "-m", "metadata commit")
+	testutil.RunGit(t, source, "checkout", "main")
+
+	remote := filepath.Join(base, "origin.git")
+	testutil.RunGit(t, "", "clone", "--bare", source, remote)
+
+	target := filepath.Join(base, "repo")
+	cloneResult, err := gitx.CloneRepo(context.Background(), remote, target)
+	if err != nil {
+		t.Fatalf("CloneRepo failed: %v", err)
+	}
+
+	prNumber := 607
+	featureSHA := testutil.RunGit(t, source, "rev-parse", "--verify", featureBranch)
+	testutil.RunGit(t, "", "--git-dir", remote, "update-ref", fmt.Sprintf("refs/pull/%d/head", prNumber), featureSHA)
+
+	svc := &Service{
+		Ctx: &gitx.RepoContext{
+			RepoRoot:      cloneResult.RepoRoot,
+			GitCommonDir:  cloneResult.GitCommonDir,
+			DefaultBranch: cloneResult.DefaultBranch,
+			IncludeFile:   ".worktreeinclude",
+		},
+		prMetadataResolver: func(context.Context, int) (PRMetadata, error) {
+			return PRMetadata{}, fmt.Errorf("gh unavailable")
+		},
+	}
+
+	result, err := svc.FetchAndCheckoutPRWithOptions(context.Background(), prNumber, PRCheckoutOptions{})
+	if err != nil {
+		t.Fatalf("FetchAndCheckoutPRWithOptions returned error: %v", err)
+	}
+	if !strings.Contains(strings.Join(result.Hints, " "), "PR metadata unavailable") {
+		t.Fatalf("hints = %v, want metadata unavailable hint", result.Hints)
+	}
+}
+
+func TestFetchAndCheckoutPRSkipsUpstreamHintForSyntheticPullBranch(t *testing.T) {
+	base := t.TempDir()
+	source := filepath.Join(base, "source")
+	testutil.InitRepoWithMain(t, source)
+
+	prFile := filepath.Join(source, "synthetic-file.txt")
+	if err := os.WriteFile(prFile, []byte("synthetic\n"), 0o644); err != nil {
+		t.Fatalf("write synthetic file: %v", err)
+	}
+	testutil.RunGit(t, source, "add", "synthetic-file.txt")
+	testutil.RunGit(t, source, "commit", "-m", "synthetic commit")
+
+	remote := filepath.Join(base, "origin.git")
+	testutil.RunGit(t, "", "clone", "--bare", source, remote)
+
+	target := filepath.Join(base, "repo")
+	cloneResult, err := gitx.CloneRepo(context.Background(), remote, target)
+	if err != nil {
+		t.Fatalf("CloneRepo failed: %v", err)
+	}
+
+	prNumber := 608
+	prSHA := testutil.RunGit(t, source, "rev-parse", "--verify", "HEAD")
+	testutil.RunGit(t, "", "--git-dir", remote, "update-ref", fmt.Sprintf("refs/pull/%d/head", prNumber), prSHA)
+	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "remote", "remove", "origin")
+	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "update-ref", fmt.Sprintf("refs/pull/%d/head", prNumber), prSHA)
+
+	svc := &Service{
+		Ctx: &gitx.RepoContext{
+			RepoRoot:      cloneResult.RepoRoot,
+			GitCommonDir:  cloneResult.GitCommonDir,
+			DefaultBranch: cloneResult.DefaultBranch,
+			IncludeFile:   ".worktreeinclude",
+		},
+		prMetadataResolver: func(context.Context, int) (PRMetadata, error) {
+			return PRMetadata{}, nil
+		},
+	}
+
+	result, err := svc.FetchAndCheckoutPRWithOptions(context.Background(), prNumber, PRCheckoutOptions{})
+	if err != nil {
+		t.Fatalf("FetchAndCheckoutPRWithOptions returned error: %v", err)
+	}
+	hints := strings.Join(result.Hints, " ")
+	if !strings.Contains(hints, "PR head branch is unknown") {
+		t.Fatalf("hints = %v, want unknown head branch hint", result.Hints)
+	}
+	if strings.Contains(hints, "git push -u origin pull/") {
+		t.Fatalf("hints = %v, should not suggest pushing synthetic pull branch to origin", result.Hints)
+	}
+}
+
 func TestFetchAndCheckoutPRWithOptionsUsePRRefDoesNotSetMismatchedUpstream(t *testing.T) {
 	base := t.TempDir()
 	source := filepath.Join(base, "source")
@@ -432,6 +604,76 @@ func TestFetchAndCheckoutPRForkSetsForkRemoteUpstream(t *testing.T) {
 	trackMerge := testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "config", "--get", "branch."+featureBranch+".merge")
 	if trackMerge != "refs/heads/"+featureBranch {
 		t.Fatalf("branch.%s.merge = %q, want %q", featureBranch, trackMerge, "refs/heads/"+featureBranch)
+	}
+}
+
+func TestFetchAndCheckoutPRForkRemoteNameCollisionReturnsHint(t *testing.T) {
+	base := t.TempDir()
+	upstreamSource := filepath.Join(base, "upstream-source")
+	testutil.InitRepoWithMain(t, upstreamSource)
+
+	featureBranch := "feature-fork-collision"
+	testutil.RunGit(t, upstreamSource, "checkout", "-b", featureBranch)
+	forkFile := filepath.Join(upstreamSource, "fork-collision-file.txt")
+	if err := os.WriteFile(forkFile, []byte("fork collision\n"), 0o644); err != nil {
+		t.Fatalf("write fork collision file: %v", err)
+	}
+	testutil.RunGit(t, upstreamSource, "add", "fork-collision-file.txt")
+	testutil.RunGit(t, upstreamSource, "commit", "-m", "fork collision commit")
+	testutil.RunGit(t, upstreamSource, "checkout", "main")
+
+	upstreamRemote := filepath.Join(base, "upstream.git")
+	testutil.RunGit(t, "", "clone", "--bare", upstreamSource, upstreamRemote)
+
+	forkSource := filepath.Join(base, "fork-source")
+	testutil.RunGit(t, "", "clone", upstreamRemote, forkSource)
+	testutil.RunGit(t, forkSource, "checkout", featureBranch)
+	testutil.RunGit(t, forkSource, "push", "origin", featureBranch)
+
+	forkRemote := filepath.Join(base, "fork.git")
+	testutil.RunGit(t, "", "clone", "--bare", forkSource, forkRemote)
+
+	target := filepath.Join(base, "repo")
+	cloneResult, err := gitx.CloneRepo(context.Background(), upstreamRemote, target)
+	if err != nil {
+		t.Fatalf("CloneRepo failed: %v", err)
+	}
+
+	featureSHA := testutil.RunGit(t, forkSource, "rev-parse", "--verify", featureBranch)
+	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "update-ref", "refs/pull/506/head", featureSHA)
+
+	forkURL := "file://" + filepath.ToSlash(forkRemote)
+	conflictingRemoteName := forkRemoteName("forkuser")
+	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "remote", "add", conflictingRemoteName, "file://"+filepath.ToSlash(upstreamRemote))
+
+	svc := &Service{
+		Ctx: &gitx.RepoContext{
+			RepoRoot:      cloneResult.RepoRoot,
+			GitCommonDir:  cloneResult.GitCommonDir,
+			DefaultBranch: cloneResult.DefaultBranch,
+			IncludeFile:   ".worktreeinclude",
+		},
+		prMetadataResolver: func(context.Context, int) (PRMetadata, error) {
+			return PRMetadata{
+				HeadRefName:         featureBranch,
+				HeadRepositoryURL:   forkURL,
+				HeadRepositoryOwner: "forkuser",
+				IsCrossRepository:   true,
+			}, nil
+		},
+	}
+
+	result, err := svc.FetchAndCheckoutPRWithOptions(context.Background(), 506, PRCheckoutOptions{})
+	if err != nil {
+		t.Fatalf("FetchAndCheckoutPRWithOptions returned error: %v", err)
+	}
+	if !strings.Contains(strings.Join(result.Hints, " "), "could not add remote") {
+		t.Fatalf("hints = %v, want remote collision hint", result.Hints)
+	}
+
+	_, _, configErr := testutil.RunGitWithError(t, "", "--git-dir", cloneResult.GitCommonDir, "config", "--get", "branch."+featureBranch+".remote")
+	if configErr == nil {
+		t.Fatalf("branch.%s should not have upstream remote configured", featureBranch)
 	}
 }
 
