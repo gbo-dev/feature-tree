@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gbo-dev/feature-tree/internal/gitx"
 	"github.com/gbo-dev/feature-tree/internal/shell"
 	"github.com/gbo-dev/feature-tree/internal/testutil"
 )
@@ -204,14 +203,7 @@ func TestRemoveReportsEquivalentDeletionMessage(t *testing.T) {
 	}
 
 	featurePath := filepath.Join(repoRoot, "feature-equivalent")
-	tempFile := filepath.Join(featurePath, "EQUIVALENT.txt")
-	if err := os.WriteFile(tempFile, []byte("temporary content\n"), 0o644); err != nil {
-		t.Fatalf("write equivalent temp file: %v", err)
-	}
-	testutil.RunGit(t, featurePath, "add", "EQUIVALENT.txt")
-	testutil.RunGit(t, featurePath, "commit", "-m", "add temporary file")
-	testutil.RunGit(t, featurePath, "rm", "EQUIVALENT.txt")
-	testutil.RunGit(t, featurePath, "commit", "-m", "remove temporary file")
+	testutil.CommitEquivalentChanges(t, featurePath, "EQUIVALENT.txt")
 
 	stdout, stderr, err := runRootCommand(t, mainWorktreePath, "remove", "feature-equivalent")
 	if err != nil {
@@ -526,19 +518,7 @@ func TestPRCommandNoPRArgument(t *testing.T) {
 func setupCLIRepo(t *testing.T) (string, string) {
 	t.Helper()
 
-	basePath := t.TempDir()
-	sourcePath := filepath.Join(basePath, "source")
-	testutil.InitRepoWithMain(t, sourcePath)
-
-	remotePath := filepath.Join(basePath, "origin.git")
-	testutil.RunGit(t, "", "clone", "--bare", sourcePath, remotePath)
-
-	targetPath := filepath.Join(basePath, "repo")
-	cloneResult, err := gitx.CloneRepo(context.Background(), remotePath, targetPath)
-	if err != nil {
-		t.Fatalf("CloneRepo failed: %v", err)
-	}
-
+	cloneResult := testutil.SetupBareRepo(t)
 	return cloneResult.RepoRoot, cloneResult.WorktreePath
 }
 

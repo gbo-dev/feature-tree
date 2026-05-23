@@ -62,15 +62,7 @@ func TestRemoveWorktreeFromInsideTargetWorktree(t *testing.T) {
 func TestRemoveWorktreeReportsEquivalentWhenNetChangesAreZero(t *testing.T) {
 	svc, featurePath, branch := setupServiceWithFeatureWorktree(t)
 
-	tempFile := filepath.Join(featurePath, "EQUIVALENT.txt")
-	if err := os.WriteFile(tempFile, []byte("temporary content\n"), 0o644); err != nil {
-		t.Fatalf("write equivalent temp file: %v", err)
-	}
-	testutil.RunGit(t, featurePath, "add", "EQUIVALENT.txt")
-	testutil.RunGit(t, featurePath, "commit", "-m", "add temporary file")
-
-	testutil.RunGit(t, featurePath, "rm", "EQUIVALENT.txt")
-	testutil.RunGit(t, featurePath, "commit", "-m", "remove temporary file")
+	testutil.CommitEquivalentChanges(t, featurePath, "EQUIVALENT.txt")
 
 	result, err := svc.RemoveWorktree(context.Background(), branch, false, false, false)
 	if err != nil {
@@ -89,14 +81,7 @@ func TestRemoveWorktreeReportsEquivalentWhenNetChangesAreZero(t *testing.T) {
 func TestBranchDeletionRelationEquivalentWithoutDefaultBranchMerge(t *testing.T) {
 	svc, featurePath, branch := setupServiceWithFeatureWorktree(t)
 
-	tempFile := filepath.Join(featurePath, "EQUIVALENT-RELATION.txt")
-	if err := os.WriteFile(tempFile, []byte("temporary content\n"), 0o644); err != nil {
-		t.Fatalf("write equivalent relation file: %v", err)
-	}
-	testutil.RunGit(t, featurePath, "add", "EQUIVALENT-RELATION.txt")
-	testutil.RunGit(t, featurePath, "commit", "-m", "add temp relation file")
-	testutil.RunGit(t, featurePath, "rm", "EQUIVALENT-RELATION.txt")
-	testutil.RunGit(t, featurePath, "commit", "-m", "remove temp relation file")
+	testutil.CommitEquivalentChanges(t, featurePath, "EQUIVALENT-RELATION.txt")
 
 	relation, err := svc.branchDeletionRelation(context.Background(), branch, svc.Ctx.DefaultBranch)
 	if err != nil {
