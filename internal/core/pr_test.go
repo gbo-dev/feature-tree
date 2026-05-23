@@ -375,12 +375,25 @@ func TestGetPRInfoHandlesNonexistentPR(t *testing.T) {
 	if err == nil {
 		t.Fatalf("getPRInfo expected error for nonexistent PR, got nil")
 	}
+	if !strings.Contains(err.Error(), "failed to fetch PR #999999") {
+		t.Fatalf("getPRInfo nonexistent PR error = %q, want fetch failure", err.Error())
+	}
 }
 
 func TestEnsureLocalRefUpdatedRefreshesStaleRef(t *testing.T) {
 	base := t.TempDir()
 	source := filepath.Join(base, "source")
 	testutil.InitRepoWithMain(t, source)
+
+	featureBranch := "feature-stale"
+	testutil.RunGit(t, source, "checkout", "-b", featureBranch)
+	prFile := filepath.Join(source, "stale-file.txt")
+	if err := os.WriteFile(prFile, []byte("stale content\n"), 0o644); err != nil {
+		t.Fatalf("write stale file: %v", err)
+	}
+	testutil.RunGit(t, source, "add", "stale-file.txt")
+	testutil.RunGit(t, source, "commit", "-m", "stale commit")
+	testutil.RunGit(t, source, "checkout", "main")
 
 	remote := filepath.Join(base, "origin.git")
 	testutil.RunGit(t, "", "clone", "--bare", source, remote)
@@ -391,21 +404,15 @@ func TestEnsureLocalRefUpdatedRefreshesStaleRef(t *testing.T) {
 		t.Fatalf("CloneRepo failed: %v", err)
 	}
 
-	featureBranch := "feature-stale"
-	featureBranchPath := filepath.Join(cloneResult.RepoRoot, featureBranch)
-	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "worktree", "add", "-b", featureBranch, featureBranchPath, cloneResult.DefaultBranch)
-
-	testutil.RunGit(t, featureBranchPath, "config", "user.name", "Test User")
-	testutil.RunGit(t, featureBranchPath, "config", "user.email", "test@example.com")
-
-	prFile := filepath.Join(featureBranchPath, "stale-file.txt")
-	if err := os.WriteFile(prFile, []byte("stale content\n"), 0o644); err != nil {
-		t.Fatalf("write stale file: %v", err)
+	prNumber := 55
+	prRef := fmt.Sprintf("refs/pull/%d/head", prNumber)
+	featureSHA := testutil.RunGit(t, "", "--git-dir", remote, "rev-parse", "--verify", featureBranch)
+	staleSHA := testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "rev-parse", "--verify", "refs/heads/"+cloneResult.DefaultBranch)
+	if featureSHA == staleSHA {
+		t.Fatalf("test setup failed: feature SHA should differ from stale SHA")
 	}
-	testutil.RunGit(t, featureBranchPath, "add", "stale-file.txt")
-	testutil.RunGit(t, featureBranchPath, "commit", "-m", "stale commit")
-
-	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "update-ref", "refs/pull/55/head", featureBranch)
+	testutil.RunGit(t, "", "--git-dir", remote, "update-ref", prRef, featureSHA)
+	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "update-ref", prRef, staleSHA)
 
 	svc := &Service{
 		Ctx: &gitx.RepoContext{
@@ -416,20 +423,20 @@ func TestEnsureLocalRefUpdatedRefreshesStaleRef(t *testing.T) {
 		},
 	}
 
-	prInfo, err := svc.getPRInfo(context.Background(), 55, false)
-	if err != nil {
-		t.Fatalf("getPRInfo returned error: %v", err)
-	}
-
-	updatedSHA, _, err := svc.ensureLocalRefUpdated(context.Background(), prInfo.Number, prInfo.HeadSHA)
+	updatedSHA, warning, err := svc.ensureLocalRefUpdated(context.Background(), prNumber, staleSHA)
 	if err != nil {
 		t.Fatalf("ensureLocalRefUpdated returned error: %v", err)
 	}
+	if warning != "" {
+		t.Fatalf("ensureLocalRefUpdated warning = %q, want empty", warning)
+	}
+	if updatedSHA != featureSHA {
+		t.Fatalf("ensureLocalRefUpdated SHA = %q, want refreshed SHA %q", updatedSHA, featureSHA)
+	}
 
-	stdout, _, _, _ := gitx.RunGitCommon(context.Background(), svc.Ctx, "rev-parse", "--verify", fmt.Sprintf("refs/pull/%d/head", 55))
-	expectedSHA := strings.TrimSpace(stdout)
-	if expectedSHA != updatedSHA {
-		t.Fatalf("ensureLocalRefUpdated: expected SHA %q, got %q", expectedSHA, updatedSHA)
+	refSHA := testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "rev-parse", "--verify", prRef)
+	if refSHA != featureSHA {
+		t.Fatalf("%s = %q, want refreshed SHA %q", prRef, refSHA, featureSHA)
 	}
 }
 
@@ -558,5 +565,8 @@ func TestFetchAndCheckoutPRNoOriginFails(t *testing.T) {
 	_, err = svc.FetchAndCheckoutPRWithOptions(context.Background(), 42, PRCheckoutOptions{})
 	if err == nil {
 		t.Fatalf("FetchAndCheckoutPRWithOptions expected error without origin, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to fetch PR #42") {
+		t.Fatalf("FetchAndCheckoutPRWithOptions no-origin error = %q, want fetch failure", err.Error())
 	}
 }
