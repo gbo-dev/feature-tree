@@ -24,8 +24,10 @@ This command:
 3. Creates a new worktree for the PR branch
 4. Switches to the new worktree
 
-	By default, ft tries to use the PR head branch name for the local branch/worktree.
-	Use --use-pr-ref to always use "pull/<num>" instead.
+	By default, ft uses the PR head branch name (via gh when available) and configures
+	git push upstream so plain "git push" updates the PR head branch.
+	Use --use-pr-ref to always use "pull/<num>" instead; plain git push may then
+	require an explicit refspec (ft prints a hint).
 
 Examples:
   ft pr 123         # Checkout PR #123 into a new worktree
@@ -60,6 +62,11 @@ Examples:
 
 			for _, warning := range result.Warnings {
 				if _, err := fmt.Fprintf(cmd.ErrOrStderr(), "warning: %s\n", warning); err != nil {
+					return fmt.Errorf("write pr output: %w", err)
+				}
+			}
+			for _, hint := range result.Hints {
+				if _, err := fmt.Fprintf(cmd.ErrOrStderr(), "hint: %s\n", hint); err != nil {
 					return fmt.Errorf("write pr output: %w", err)
 				}
 			}

@@ -11,6 +11,9 @@ import (
 
 type Service struct {
 	Ctx *gitx.RepoContext
+
+	// prMetadataResolver is an optional test hook; nil uses gh pr view.
+	prMetadataResolver func(context.Context, int) (PRMetadata, error)
 }
 
 type CreateResult struct {
@@ -34,6 +37,7 @@ type PRResult struct {
 	Branch   string
 	Created  bool
 	Warnings []string
+	Hints    []string
 }
 
 type RemoveResult struct {
