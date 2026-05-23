@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/gbo-dev/feature-tree/internal/testutil"
@@ -49,5 +50,8 @@ func TestSwitchWithoutCreateFailsForMissingWorktree(t *testing.T) {
 	_, err := svc.Switch(context.Background(), "feature-missing", false, "")
 	if err == nil {
 		t.Fatalf("Switch expected error when worktree is missing and --create is disabled")
+	}
+	if !strings.Contains(err.Error(), `branch "feature-missing" has no worktree`) {
+		t.Fatalf("Switch missing-worktree error = %q, want missing worktree message", err.Error())
 	}
 }
