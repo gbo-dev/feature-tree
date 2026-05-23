@@ -165,6 +165,10 @@ func renderSwitchHeadTab(row pickerRow) string {
 		stateColor = uiansi.Yellow
 	}
 	writeSwitchHeadField(&b, "STATE", row.state, stateColor)
+	if row.branchMismatch {
+		writeSwitchHeadField(&b, "DEDICATED", row.dedicatedDir, uiansi.Yellow)
+		writeSwitchHeadField(&b, "CHECKED OUT", row.branch, uiansi.Yellow)
+	}
 	writeSwitchHeadField(&b, "VS. MAIN", row.relation, uiansi.Grey)
 	if strings.TrimSpace(row.commit.Hash) != "" && strings.TrimSpace(row.commit.Subject) != "" {
 		writeSwitchHeadCommitField(&b, row.commit.Hash, row.commit.Subject)

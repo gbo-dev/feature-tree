@@ -61,7 +61,7 @@ var helpTemplate = fmt.Sprintf(`%s%sft%s (feature-tree) – lightweight git work
 %sNotes:%s
   - clone sets up bare-in-.git layout, resolves origin/HEAD, and creates the first worktree.
   - Uses include manifest from default branch worktree (default: .worktreeinclude).
-  - list markers: @ is current branch worktree, ^ is default branch worktree.
+  - list markers: @ is current branch worktree, ^ is default branch worktree, ~ is branch/path mismatch.
   - STATE shows clean or symbols: + staged, ! unstaged, ? untracked; combinations (e.g. +!?) mean multiple states.
   - switch without branch opens fzf picker when running in a TTY (preview tabs: tab/s-tab).
   - create without branch requires an explicit name unless --all-branches is used.

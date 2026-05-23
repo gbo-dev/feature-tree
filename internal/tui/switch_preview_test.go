@@ -9,6 +9,24 @@ import (
 	"github.com/gbo-dev/feature-tree/internal/uiansi"
 )
 
+func TestRenderSwitchHeadTabShowsBranchPathMismatch(t *testing.T) {
+	text := renderSwitchHeadTab(pickerRow{
+		branch:         "other-branch",
+		path:           "../feature-a",
+		state:          "clean",
+		relation:       "A: 0 B: 0",
+		branchMismatch: true,
+		dedicatedDir:   "feature-a",
+	})
+
+	if !strings.Contains(text, "DEDICATED:") || !strings.Contains(text, "feature-a") {
+		t.Fatalf("expected dedicated directory in preview, got: %q", text)
+	}
+	if !strings.Contains(text, "CHECKED OUT:") || !strings.Contains(text, "other-branch") {
+		t.Fatalf("expected checked-out branch in preview, got: %q", text)
+	}
+}
+
 func TestLoadSwitchAheadCommitHashesErrorsWhenDefaultBranchUnknown(t *testing.T) {
 	_, err := loadSwitchAheadCommitHashes(context.Background(), nil, "", "feature")
 	if err == nil {

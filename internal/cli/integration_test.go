@@ -307,6 +307,31 @@ func TestListOutsideGitRepoFails(t *testing.T) {
 	assertNoOutputOnError(t, stdout, stderr)
 }
 
+func TestListShowsBranchPathMismatchMarker(t *testing.T) {
+	repoRoot, mainWorktreePath := setupCLIRepo(t)
+
+	if _, _, err := runRootCommand(t, mainWorktreePath, "create", "feature-a"); err != nil {
+		t.Fatalf("ft create feature-a returned error: %v", err)
+	}
+
+	featurePath := filepath.Join(repoRoot, "feature-a")
+	testutil.RunGit(t, featurePath, "checkout", "-b", "other-branch")
+
+	stdout, stderr, err := runRootCommand(t, mainWorktreePath, "list")
+	if err != nil {
+		t.Fatalf("ft list returned error: %v", err)
+	}
+	if strings.TrimSpace(stderr) != "" {
+		t.Fatalf("ft list stderr = %q, want empty", stderr)
+	}
+	if !strings.Contains(stdout, "~") {
+		t.Fatalf("ft list output missing branch/path mismatch marker, got: %q", stdout)
+	}
+	if !strings.Contains(stdout, "other-branch") {
+		t.Fatalf("ft list output missing checked-out branch, got: %q", stdout)
+	}
+}
+
 func TestListAtDetachedHeadFailsWithClearMessage(t *testing.T) {
 	_, mainWorktreePath := setupCLIRepo(t)
 	testutil.RunGit(t, mainWorktreePath, "checkout", "--detach")

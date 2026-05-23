@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
 	fzf "github.com/junegunn/fzf/src"
 
+	"github.com/gbo-dev/feature-tree/internal/core"
 	"github.com/gbo-dev/feature-tree/internal/gitx"
 	"github.com/gbo-dev/feature-tree/internal/textwidth"
 	"github.com/gbo-dev/feature-tree/internal/uiansi"
@@ -68,14 +70,16 @@ func truncateCell(s string, max int) string {
 }
 
 type pickerRow struct {
-	branch   string
-	commit   gitx.CommitInfo
-	path     string
-	state    string
-	relation string
-	current  bool
-	marker   string
-	hidden   []string
+	branch         string
+	commit         gitx.CommitInfo
+	path           string
+	state          string
+	relation       string
+	current        bool
+	marker         string
+	branchMismatch bool
+	dedicatedDir   string
+	hidden         []string
 }
 
 func buildWorktreePickerRow(commandCtx context.Context, worktree gitx.Worktree, commit gitx.CommitInfo, currentBranch string, ctx *gitx.RepoContext, fromPath string) pickerRow {
@@ -91,14 +95,21 @@ func buildWorktreePickerRow(commandCtx context.Context, worktree gitx.Worktree, 
 	if worktree.Branch == ctx.DefaultBranch && worktree.Branch != currentBranch {
 		m = "^"
 	}
+	branchMismatch := core.WorktreeBranchPathMismatch(ctx.RepoRoot, worktree)
+	dedicatedDir := ""
+	if branchMismatch {
+		dedicatedDir = filepath.Base(worktree.Path)
+	}
 	return pickerRow{
-		branch:   worktree.Branch,
-		commit:   commit,
-		path:     gitx.RelativePath(worktree.Path, fromPath),
-		state:    gitx.DirtyState(dirty),
-		relation: relation,
-		current:  worktree.Branch == currentBranch,
-		marker:   m,
+		branch:         worktree.Branch,
+		commit:         commit,
+		path:           gitx.RelativePath(worktree.Path, fromPath),
+		state:          gitx.DirtyState(dirty),
+		relation:       relation,
+		current:        worktree.Branch == currentBranch,
+		marker:         m,
+		branchMismatch: branchMismatch,
+		dedicatedDir:   dedicatedDir,
 	}
 }
 
@@ -572,20 +583,30 @@ func runFZF(lines []string, prompt string, extraArgs ...string) (string, error) 
 	}
 }
 
+// buildRowPrefix renders list/picker row markers: @ current, ^ default branch, ~ branch/path mismatch.
+func buildRowPrefix(row pickerRow) string {
+	var markers strings.Builder
+	switch {
+	case row.current:
+		markers.WriteString(uiansi.Green + "@" + uiansi.Reset)
+	case row.marker == "^":
+		markers.WriteString(uiansi.Periwinkle + "^" + uiansi.Reset)
+	}
+	if row.branchMismatch {
+		markers.WriteString(uiansi.Yellow + "~" + uiansi.Reset)
+	}
+	if markers.Len() == 0 {
+		return "  "
+	}
+	return markers.String() + " "
+}
+
 // buildFZFLines emits "display\tbranch[\thidden...]". The hidden payload fields
 // after the first tab are for preview and parseSelectedBranch ignores them.
 func buildFZFLines(rows []pickerRow, l rowLayout) []string {
 	lines := make([]string, 0, len(rows))
 	for _, row := range rows {
-		var prefix string
-		switch {
-		case row.current:
-			prefix = uiansi.Green + "@ " + uiansi.Reset
-		case row.marker == "^":
-			prefix = uiansi.Periwinkle + "^ " + uiansi.Reset
-		default:
-			prefix = "  "
-		}
+		prefix := buildRowPrefix(row)
 
 		b := truncateBranch(row.branch, l.branchWidth)
 		branchField := b + strings.Repeat(" ", l.branchWidth-textwidth.Width(b)+2)

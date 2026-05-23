@@ -78,6 +78,49 @@ func TestBuildFZFLinesAppendsHiddenFields(t *testing.T) {
 	}
 }
 
+func TestBuildFZFLinesShowsBranchPathMismatchMarker(t *testing.T) {
+	rows := []pickerRow{
+		{
+			branch:         "other-branch",
+			path:           "../feature-a",
+			state:          "clean",
+			relation:       "A: 0 B: 0",
+			branchMismatch: true,
+		},
+	}
+
+	layout := computeLayout(rows)
+	lines := buildFZFLines(rows, layout)
+	if len(lines) != 1 {
+		t.Fatalf("buildFZFLines len = %d, want 1", len(lines))
+	}
+	if !strings.Contains(lines[0], "~") {
+		t.Fatalf("buildFZFLines output missing mismatch marker: %q", lines[0])
+	}
+}
+
+func TestBuildFZFLinesShowsCurrentAndMismatchMarkersTogether(t *testing.T) {
+	rows := []pickerRow{
+		{
+			branch:         "other-branch",
+			path:           ".",
+			state:          "clean",
+			relation:       "A: 0 B: 0",
+			current:        true,
+			branchMismatch: true,
+		},
+	}
+
+	layout := computeLayout(rows)
+	lines := buildFZFLines(rows, layout)
+	if len(lines) != 1 {
+		t.Fatalf("buildFZFLines len = %d, want 1", len(lines))
+	}
+	if !strings.Contains(lines[0], "@") || !strings.Contains(lines[0], "~") {
+		t.Fatalf("buildFZFLines output missing current and mismatch markers: %q", lines[0])
+	}
+}
+
 func TestFitListLayoutKeepsLineWithinLimit(t *testing.T) {
 	layout := rowLayout{
 		branchWidth:   120,
