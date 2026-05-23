@@ -330,6 +330,43 @@ func TestListShowsBranchPathMismatchMarker(t *testing.T) {
 	if !strings.Contains(stdout, "other-branch") {
 		t.Fatalf("ft list output missing checked-out branch, got: %q", stdout)
 	}
+	if strings.Contains(stdout, "@~") {
+		t.Fatalf("ft list should render ~ before @, got: %q", stdout)
+	}
+
+	lines := strings.Split(strings.TrimSpace(stdout), "\n")
+	if len(lines) < 3 {
+		t.Fatalf("ft list output too short for alignment check, got: %q", stdout)
+	}
+	mainIdx, mismatchIdx := -1, -1
+	for _, line := range lines[1:] {
+		plain := stripTestANSI(line)
+		if idx := strings.Index(plain, "other-branch"); idx >= 0 {
+			mismatchIdx = idx
+			continue
+		}
+		if idx := strings.Index(plain, "main"); idx >= 0 {
+			mainIdx = idx
+		}
+	}
+	if mainIdx < 0 || mismatchIdx < 0 {
+		t.Fatalf("ft list output missing rows for alignment check, got: %q", stdout)
+	}
+	if mainIdx != mismatchIdx {
+		t.Fatalf("ft list branch column misaligned: main at %d, mismatch at %d\n%q", mainIdx, mismatchIdx, stdout)
+	}
+}
+
+func stripTestANSI(s string) string {
+	for strings.Contains(s, "\x1b[") {
+		start := strings.Index(s, "\x1b[")
+		end := strings.Index(s[start:], "m")
+		if end < 0 {
+			break
+		}
+		s = s[:start] + s[start+end+1:]
+	}
+	return s
 }
 
 func TestListAtDetachedHeadFailsWithClearMessage(t *testing.T) {
