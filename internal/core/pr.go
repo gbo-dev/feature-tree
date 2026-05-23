@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/gbo-dev/feature-tree/internal/gitx"
@@ -39,6 +40,7 @@ func (s *Service) FetchAndCheckoutPRWithOptions(commandCtx context.Context, prNu
 	warnings := make([]string, 0, 1)
 	hints := make([]string, 0, 1)
 
+	preRefreshHeadSHA := prInfo.HeadSHA
 	updatedSHA, warning, err := s.ensureLocalRefUpdated(commandCtx, prInfo.Number, prInfo.HeadSHA)
 	if err != nil {
 		return nil, err
@@ -48,7 +50,10 @@ func (s *Service) FetchAndCheckoutPRWithOptions(commandCtx context.Context, prNu
 		warnings = append(warnings, warning)
 	}
 
-	metadata, _ := s.resolvePRMetadata(commandCtx, prNumber)
+	metadata, metadataErr := s.resolvePRMetadata(commandCtx, prNumber)
+	if metadataErr != nil {
+		hints = append(hints, fmt.Sprintf("PR metadata unavailable (%v); fork PR push setup may require an explicit refspec", metadataErr))
+	}
 
 	headBranchName := strings.TrimSpace(metadata.HeadRefName)
 	if headBranchName == "" {
@@ -67,7 +72,7 @@ func (s *Service) FetchAndCheckoutPRWithOptions(commandCtx context.Context, prNu
 		headBranchName = prInfo.HeadRef
 	}
 
-	if err := s.validateLocalBranchForPR(commandCtx, prInfo.HeadRef, prInfo.HeadSHA); err != nil {
+	if err := s.validateLocalBranchForPR(commandCtx, prInfo.HeadRef, prInfo.HeadSHA, preRefreshHeadSHA); err != nil {
 		return nil, err
 	}
 
@@ -211,7 +216,7 @@ func (s *Service) resolvePRTitle(commandCtx context.Context, headSHA string, prN
 	return title, nil
 }
 
-func (s *Service) validateLocalBranchForPR(commandCtx context.Context, localBranch string, headSHA string) error {
+func (s *Service) validateLocalBranchForPR(commandCtx context.Context, localBranch string, headSHA string, allowedExistingSHAs ...string) error {
 	localBranch = strings.TrimSpace(localBranch)
 	headSHA = strings.TrimSpace(headSHA)
 	if localBranch == "" || headSHA == "" {
@@ -227,6 +232,11 @@ func (s *Service) validateLocalBranchForPR(commandCtx context.Context, localBran
 	}
 	if existingSHA == headSHA {
 		return nil
+	}
+	for _, allowedSHA := range allowedExistingSHAs {
+		if existingSHA == strings.TrimSpace(allowedSHA) {
+			return nil
+		}
 	}
 	return fmt.Errorf("local branch %q exists at %s but PR head is %s; remove or rename the branch before checking out this PR", localBranch, shortSHA(existingSHA), shortSHA(headSHA))
 }
@@ -253,12 +263,24 @@ func shortSHA(sha string) string {
 	return sha[:12]
 }
 
+func isSyntheticPRBranchName(branch string) bool {
+	branch = strings.TrimSpace(branch)
+	if !strings.HasPrefix(branch, "pull/") {
+		return false
+	}
+	_, err := strconv.Atoi(strings.TrimPrefix(branch, "pull/"))
+	return err == nil
+}
+
 func (s *Service) resolvePRPushUpstream(commandCtx context.Context, localBranch string, headBranchName string, metadata PRMetadata) (*prPushUpstream, []string, error) {
 	localBranch = strings.TrimSpace(localBranch)
 	headBranchName = strings.TrimSpace(headBranchName)
 
 	if localBranch == "" || headBranchName == "" {
 		return nil, nil, nil
+	}
+	if isSyntheticPRBranchName(headBranchName) {
+		return nil, []string{fmt.Sprintf("PR head branch is unknown; plain git push from %q may not update the PR head. Install/authenticate gh or push with an explicit refspec.", localBranch)}, nil
 	}
 	if localBranch != headBranchName {
 		return nil, []string{fmt.Sprintf("local branch %q differs from PR head branch %q; plain git push may require an explicit refspec", localBranch, headBranchName)}, nil
@@ -301,7 +323,7 @@ func (s *Service) resolveForkPRPushUpstream(commandCtx context.Context, localBra
 		remoteName = existingRemote
 	} else {
 		if err := gitx.AddRemote(commandCtx, s.Ctx, remoteName, remoteURL); err != nil {
-			return nil, nil, err
+			return nil, []string{fmt.Sprintf("fork PR: could not add remote %q (%v); add the head repository remote and push with: git push -u <remote> %s", remoteName, err, headBranchName)}, nil
 		}
 	}
 

@@ -76,9 +76,13 @@ func resolvePRMetadataFromGH(commandCtx context.Context, repoCtx *gitx.RepoConte
 	cmd := exec.CommandContext(commandCtx, "gh", args...)
 	cmd.Dir = strings.TrimSpace(repoCtx.RepoRoot)
 
-	out, err := cmd.Output()
+	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return PRMetadata{}, fmt.Errorf("gh pr view: %w", err)
+		output := strings.TrimSpace(string(out))
+		if output == "" {
+			return PRMetadata{}, fmt.Errorf("gh pr view: %w", err)
+		}
+		return PRMetadata{}, fmt.Errorf("gh pr view: %w: %s", err, output)
 	}
 
 	var payload ghPRViewJSON
