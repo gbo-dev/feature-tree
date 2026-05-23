@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gbo-dev/feature-tree/internal/gittest"
 	"github.com/gbo-dev/feature-tree/internal/gitx"
 	"github.com/gbo-dev/feature-tree/internal/testutil"
 )
@@ -17,18 +18,11 @@ func TestGetPRInfoFetchesFromOrigin(t *testing.T) {
 	source := filepath.Join(base, "source")
 	testutil.InitRepoWithMain(t, source)
 
-	remote := filepath.Join(base, "origin.git")
-	testutil.RunGit(t, "", "clone", "--bare", source, remote)
-
-	target := filepath.Join(base, "repo")
-	cloneResult, err := gitx.CloneRepo(context.Background(), remote, target)
-	if err != nil {
-		t.Fatalf("CloneRepo failed: %v", err)
-	}
+	bare := testutil.SetupBareRemoteFromSource(t, base, source)
+	cloneResult := gittest.SetupClonedRepo(t, bare, "repo")
 
 	featureBranch := "feature-to-pr"
-	featureBranchPath := filepath.Join(cloneResult.RepoRoot, featureBranch)
-	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "worktree", "add", "-b", featureBranch, featureBranchPath, cloneResult.DefaultBranch)
+	featureBranchPath := gittest.AddWorktree(t, cloneResult, featureBranch)
 
 	testutil.RunGit(t, featureBranchPath, "config", "user.name", "Test User")
 	testutil.RunGit(t, featureBranchPath, "config", "user.email", "test@example.com")
@@ -43,12 +37,7 @@ func TestGetPRInfoFetchesFromOrigin(t *testing.T) {
 	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "update-ref", "refs/pull/42/head", featureBranch)
 
 	svc := &Service{
-		Ctx: &gitx.RepoContext{
-			RepoRoot:      cloneResult.RepoRoot,
-			GitCommonDir:  cloneResult.GitCommonDir,
-			DefaultBranch: cloneResult.DefaultBranch,
-			IncludeFile:   ".worktreeinclude",
-		},
+		Ctx: gittest.RepoContextFromClone(cloneResult),
 	}
 
 	prInfo, err := svc.getPRInfo(context.Background(), 42, false)
@@ -71,18 +60,11 @@ func TestFetchAndCheckoutPRCreatesWorktree(t *testing.T) {
 	source := filepath.Join(base, "source")
 	testutil.InitRepoWithMain(t, source)
 
-	remote := filepath.Join(base, "origin.git")
-	testutil.RunGit(t, "", "clone", "--bare", source, remote)
-
-	target := filepath.Join(base, "repo")
-	cloneResult, err := gitx.CloneRepo(context.Background(), remote, target)
-	if err != nil {
-		t.Fatalf("CloneRepo failed: %v", err)
-	}
+	bare := testutil.SetupBareRemoteFromSource(t, base, source)
+	cloneResult := gittest.SetupClonedRepo(t, bare, "repo")
 
 	featureBranch := "feature-pr-test"
-	featureBranchPath := filepath.Join(cloneResult.RepoRoot, featureBranch)
-	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "worktree", "add", "-b", featureBranch, featureBranchPath, cloneResult.DefaultBranch)
+	featureBranchPath := gittest.AddWorktree(t, cloneResult, featureBranch)
 
 	testutil.RunGit(t, featureBranchPath, "config", "user.name", "Test User")
 	testutil.RunGit(t, featureBranchPath, "config", "user.email", "test@example.com")
@@ -102,12 +84,7 @@ func TestFetchAndCheckoutPRCreatesWorktree(t *testing.T) {
 	}
 
 	svc := &Service{
-		Ctx: &gitx.RepoContext{
-			RepoRoot:      cloneResult.RepoRoot,
-			GitCommonDir:  cloneResult.GitCommonDir,
-			DefaultBranch: cloneResult.DefaultBranch,
-			IncludeFile:   ".worktreeinclude",
-		},
+		Ctx: gittest.RepoContextFromClone(cloneResult),
 	}
 
 	result, err := svc.FetchAndCheckoutPRWithOptions(context.Background(), 99, PRCheckoutOptions{})
@@ -135,18 +112,11 @@ func TestFetchAndCheckoutPRWithOptionsUsesPRRef(t *testing.T) {
 	source := filepath.Join(base, "source")
 	testutil.InitRepoWithMain(t, source)
 
-	remote := filepath.Join(base, "origin.git")
-	testutil.RunGit(t, "", "clone", "--bare", source, remote)
-
-	target := filepath.Join(base, "repo")
-	cloneResult, err := gitx.CloneRepo(context.Background(), remote, target)
-	if err != nil {
-		t.Fatalf("CloneRepo failed: %v", err)
-	}
+	bare := testutil.SetupBareRemoteFromSource(t, base, source)
+	cloneResult := gittest.SetupClonedRepo(t, bare, "repo")
 
 	featureBranch := "feature-pr-option"
-	featureBranchPath := filepath.Join(cloneResult.RepoRoot, featureBranch)
-	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "worktree", "add", "-b", featureBranch, featureBranchPath, cloneResult.DefaultBranch)
+	featureBranchPath := gittest.AddWorktree(t, cloneResult, featureBranch)
 	testutil.RunGit(t, featureBranchPath, "config", "user.name", "Test User")
 	testutil.RunGit(t, featureBranchPath, "config", "user.email", "test@example.com")
 
@@ -161,12 +131,7 @@ func TestFetchAndCheckoutPRWithOptionsUsesPRRef(t *testing.T) {
 	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "worktree", "remove", "--force", featureBranchPath)
 
 	svc := &Service{
-		Ctx: &gitx.RepoContext{
-			RepoRoot:      cloneResult.RepoRoot,
-			GitCommonDir:  cloneResult.GitCommonDir,
-			DefaultBranch: cloneResult.DefaultBranch,
-			IncludeFile:   ".worktreeinclude",
-		},
+		Ctx: gittest.RepoContextFromClone(cloneResult),
 	}
 
 	result, err := svc.FetchAndCheckoutPRWithOptions(context.Background(), 101, PRCheckoutOptions{UsePRRef: true})
@@ -204,24 +169,13 @@ func TestFetchAndCheckoutPRSetsTrackingToRemoteHeadBranch(t *testing.T) {
 	testutil.RunGit(t, source, "commit", "-m", "tracked PR commit")
 	testutil.RunGit(t, source, "checkout", "main")
 
-	remote := filepath.Join(base, "origin.git")
-	testutil.RunGit(t, "", "clone", "--bare", source, remote)
-
-	target := filepath.Join(base, "repo")
-	cloneResult, err := gitx.CloneRepo(context.Background(), remote, target)
-	if err != nil {
-		t.Fatalf("CloneRepo failed: %v", err)
-	}
+	bare := testutil.SetupBareRemoteFromSource(t, base, source)
+	cloneResult := gittest.SetupClonedRepo(t, bare, "repo")
 
 	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "update-ref", "refs/pull/202/head", "refs/remotes/origin/"+featureBranch)
 
 	svc := &Service{
-		Ctx: &gitx.RepoContext{
-			RepoRoot:      cloneResult.RepoRoot,
-			GitCommonDir:  cloneResult.GitCommonDir,
-			DefaultBranch: cloneResult.DefaultBranch,
-			IncludeFile:   ".worktreeinclude",
-		},
+		Ctx: gittest.RepoContextFromClone(cloneResult),
 	}
 
 	result, err := svc.FetchAndCheckoutPRWithOptions(context.Background(), 202, PRCheckoutOptions{})
@@ -259,14 +213,8 @@ func TestFetchAndCheckoutPRFailsOnBranchNameCollision(t *testing.T) {
 	testutil.RunGit(t, source, "commit", "-m", "collision commit")
 	testutil.RunGit(t, source, "checkout", "main")
 
-	remote := filepath.Join(base, "origin.git")
-	testutil.RunGit(t, "", "clone", "--bare", source, remote)
-
-	target := filepath.Join(base, "repo")
-	cloneResult, err := gitx.CloneRepo(context.Background(), remote, target)
-	if err != nil {
-		t.Fatalf("CloneRepo failed: %v", err)
-	}
+	bare := testutil.SetupBareRemoteFromSource(t, base, source)
+	cloneResult := gittest.SetupClonedRepo(t, bare, "repo")
 
 	prHeadSHA := testutil.RunGit(t, source, "rev-parse", "--verify", featureBranch)
 	mainSHA := testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "rev-parse", "--verify", "refs/heads/"+cloneResult.DefaultBranch)
@@ -274,18 +222,13 @@ func TestFetchAndCheckoutPRFailsOnBranchNameCollision(t *testing.T) {
 	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "update-ref", "refs/pull/404/head", prHeadSHA)
 
 	svc := &Service{
-		Ctx: &gitx.RepoContext{
-			RepoRoot:      cloneResult.RepoRoot,
-			GitCommonDir:  cloneResult.GitCommonDir,
-			DefaultBranch: cloneResult.DefaultBranch,
-			IncludeFile:   ".worktreeinclude",
-		},
+		Ctx: gittest.RepoContextFromClone(cloneResult),
 		prMetadataResolver: func(context.Context, int) (PRMetadata, error) {
 			return PRMetadata{HeadRefName: featureBranch}, nil
 		},
 	}
 
-	_, err = svc.FetchAndCheckoutPRWithOptions(context.Background(), 404, PRCheckoutOptions{})
+	_, err := svc.FetchAndCheckoutPRWithOptions(context.Background(), 404, PRCheckoutOptions{})
 	if err == nil {
 		t.Fatalf("FetchAndCheckoutPRWithOptions expected collision error, got nil")
 	}
@@ -315,26 +258,15 @@ func TestFetchAndCheckoutPRAdvancesExistingBranchFromCachedPRHead(t *testing.T) 
 	testutil.RunGit(t, source, "commit", "-m", "advance v1")
 	testutil.RunGit(t, source, "checkout", "main")
 
-	remote := filepath.Join(base, "origin.git")
-	testutil.RunGit(t, "", "clone", "--bare", source, remote)
-
-	target := filepath.Join(base, "repo")
-	cloneResult, err := gitx.CloneRepo(context.Background(), remote, target)
-	if err != nil {
-		t.Fatalf("CloneRepo failed: %v", err)
-	}
+	bare := testutil.SetupBareRemoteFromSource(t, base, source)
+	cloneResult := gittest.SetupClonedRepo(t, bare, "repo")
 
 	prNumber := 606
 	v1SHA := testutil.RunGit(t, source, "rev-parse", "--verify", featureBranch)
-	testutil.RunGit(t, "", "--git-dir", remote, "update-ref", fmt.Sprintf("refs/pull/%d/head", prNumber), v1SHA)
+	testutil.RunGit(t, "", "--git-dir", bare.BareDir, "update-ref", fmt.Sprintf("refs/pull/%d/head", prNumber), v1SHA)
 
 	svc := &Service{
-		Ctx: &gitx.RepoContext{
-			RepoRoot:      cloneResult.RepoRoot,
-			GitCommonDir:  cloneResult.GitCommonDir,
-			DefaultBranch: cloneResult.DefaultBranch,
-			IncludeFile:   ".worktreeinclude",
-		},
+		Ctx: gittest.RepoContextFromClone(cloneResult),
 		prMetadataResolver: func(context.Context, int) (PRMetadata, error) {
 			return PRMetadata{HeadRefName: featureBranch}, nil
 		},
@@ -353,8 +285,8 @@ func TestFetchAndCheckoutPRAdvancesExistingBranchFromCachedPRHead(t *testing.T) 
 	testutil.RunGit(t, source, "add", "advance-file.txt")
 	testutil.RunGit(t, source, "commit", "-m", "advance v2")
 	v2SHA := testutil.RunGit(t, source, "rev-parse", "--verify", featureBranch)
-	testutil.RunGit(t, source, "push", remote, featureBranch)
-	testutil.RunGit(t, "", "--git-dir", remote, "update-ref", fmt.Sprintf("refs/pull/%d/head", prNumber), v2SHA)
+	testutil.RunGit(t, source, "push", bare.BareDir, featureBranch)
+	testutil.RunGit(t, "", "--git-dir", bare.BareDir, "update-ref", fmt.Sprintf("refs/pull/%d/head", prNumber), v2SHA)
 
 	second, err := svc.FetchAndCheckoutPRWithOptions(context.Background(), prNumber, PRCheckoutOptions{})
 	if err != nil {
@@ -385,26 +317,15 @@ func TestFetchAndCheckoutPRHintsWhenMetadataUnavailable(t *testing.T) {
 	testutil.RunGit(t, source, "commit", "-m", "metadata commit")
 	testutil.RunGit(t, source, "checkout", "main")
 
-	remote := filepath.Join(base, "origin.git")
-	testutil.RunGit(t, "", "clone", "--bare", source, remote)
-
-	target := filepath.Join(base, "repo")
-	cloneResult, err := gitx.CloneRepo(context.Background(), remote, target)
-	if err != nil {
-		t.Fatalf("CloneRepo failed: %v", err)
-	}
+	bare := testutil.SetupBareRemoteFromSource(t, base, source)
+	cloneResult := gittest.SetupClonedRepo(t, bare, "repo")
 
 	prNumber := 607
 	featureSHA := testutil.RunGit(t, source, "rev-parse", "--verify", featureBranch)
-	testutil.RunGit(t, "", "--git-dir", remote, "update-ref", fmt.Sprintf("refs/pull/%d/head", prNumber), featureSHA)
+	testutil.RunGit(t, "", "--git-dir", bare.BareDir, "update-ref", fmt.Sprintf("refs/pull/%d/head", prNumber), featureSHA)
 
 	svc := &Service{
-		Ctx: &gitx.RepoContext{
-			RepoRoot:      cloneResult.RepoRoot,
-			GitCommonDir:  cloneResult.GitCommonDir,
-			DefaultBranch: cloneResult.DefaultBranch,
-			IncludeFile:   ".worktreeinclude",
-		},
+		Ctx: gittest.RepoContextFromClone(cloneResult),
 		prMetadataResolver: func(context.Context, int) (PRMetadata, error) {
 			return PRMetadata{}, fmt.Errorf("gh unavailable")
 		},
@@ -431,28 +352,17 @@ func TestFetchAndCheckoutPRSkipsUpstreamHintForSyntheticPullBranch(t *testing.T)
 	testutil.RunGit(t, source, "add", "synthetic-file.txt")
 	testutil.RunGit(t, source, "commit", "-m", "synthetic commit")
 
-	remote := filepath.Join(base, "origin.git")
-	testutil.RunGit(t, "", "clone", "--bare", source, remote)
-
-	target := filepath.Join(base, "repo")
-	cloneResult, err := gitx.CloneRepo(context.Background(), remote, target)
-	if err != nil {
-		t.Fatalf("CloneRepo failed: %v", err)
-	}
+	bare := testutil.SetupBareRemoteFromSource(t, base, source)
+	cloneResult := gittest.SetupClonedRepo(t, bare, "repo")
 
 	prNumber := 608
 	prSHA := testutil.RunGit(t, source, "rev-parse", "--verify", "HEAD")
-	testutil.RunGit(t, "", "--git-dir", remote, "update-ref", fmt.Sprintf("refs/pull/%d/head", prNumber), prSHA)
+	testutil.RunGit(t, "", "--git-dir", bare.BareDir, "update-ref", fmt.Sprintf("refs/pull/%d/head", prNumber), prSHA)
 	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "remote", "remove", "origin")
 	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "update-ref", fmt.Sprintf("refs/pull/%d/head", prNumber), prSHA)
 
 	svc := &Service{
-		Ctx: &gitx.RepoContext{
-			RepoRoot:      cloneResult.RepoRoot,
-			GitCommonDir:  cloneResult.GitCommonDir,
-			DefaultBranch: cloneResult.DefaultBranch,
-			IncludeFile:   ".worktreeinclude",
-		},
+		Ctx: gittest.RepoContextFromClone(cloneResult),
 		prMetadataResolver: func(context.Context, int) (PRMetadata, error) {
 			return PRMetadata{}, nil
 		},
@@ -487,24 +397,13 @@ func TestFetchAndCheckoutPRWithOptionsUsePRRefDoesNotSetMismatchedUpstream(t *te
 	testutil.RunGit(t, source, "commit", "-m", "tracked PR ref commit")
 	testutil.RunGit(t, source, "checkout", "main")
 
-	remote := filepath.Join(base, "origin.git")
-	testutil.RunGit(t, "", "clone", "--bare", source, remote)
-
-	target := filepath.Join(base, "repo")
-	cloneResult, err := gitx.CloneRepo(context.Background(), remote, target)
-	if err != nil {
-		t.Fatalf("CloneRepo failed: %v", err)
-	}
+	bare := testutil.SetupBareRemoteFromSource(t, base, source)
+	cloneResult := gittest.SetupClonedRepo(t, bare, "repo")
 
 	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "update-ref", "refs/pull/303/head", "refs/remotes/origin/"+featureBranch)
 
 	svc := &Service{
-		Ctx: &gitx.RepoContext{
-			RepoRoot:      cloneResult.RepoRoot,
-			GitCommonDir:  cloneResult.GitCommonDir,
-			DefaultBranch: cloneResult.DefaultBranch,
-			IncludeFile:   ".worktreeinclude",
-		},
+		Ctx: gittest.RepoContextFromClone(cloneResult),
 	}
 
 	result, err := svc.FetchAndCheckoutPRWithOptions(context.Background(), 303, PRCheckoutOptions{UsePRRef: true})
@@ -566,12 +465,7 @@ func TestFetchAndCheckoutPRForkSetsForkRemoteUpstream(t *testing.T) {
 
 	forkURL := "file://" + filepath.ToSlash(forkRemote)
 	svc := &Service{
-		Ctx: &gitx.RepoContext{
-			RepoRoot:      cloneResult.RepoRoot,
-			GitCommonDir:  cloneResult.GitCommonDir,
-			DefaultBranch: cloneResult.DefaultBranch,
-			IncludeFile:   ".worktreeinclude",
-		},
+		Ctx: gittest.RepoContextFromClone(cloneResult),
 		prMetadataResolver: func(context.Context, int) (PRMetadata, error) {
 			return PRMetadata{
 				HeadRefName:         featureBranch,
@@ -647,12 +541,7 @@ func TestFetchAndCheckoutPRForkRemoteNameCollisionReturnsHint(t *testing.T) {
 	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "remote", "add", conflictingRemoteName, "file://"+filepath.ToSlash(upstreamRemote))
 
 	svc := &Service{
-		Ctx: &gitx.RepoContext{
-			RepoRoot:      cloneResult.RepoRoot,
-			GitCommonDir:  cloneResult.GitCommonDir,
-			DefaultBranch: cloneResult.DefaultBranch,
-			IncludeFile:   ".worktreeinclude",
-		},
+		Ctx: gittest.RepoContextFromClone(cloneResult),
 		prMetadataResolver: func(context.Context, int) (PRMetadata, error) {
 			return PRMetadata{
 				HeadRefName:         featureBranch,
@@ -682,14 +571,8 @@ func TestFetchAndCheckoutPRReusesExistingWorktree(t *testing.T) {
 	source := filepath.Join(base, "source")
 	testutil.InitRepoWithMain(t, source)
 
-	remote := filepath.Join(base, "origin.git")
-	testutil.RunGit(t, "", "clone", "--bare", source, remote)
-
-	target := filepath.Join(base, "repo")
-	cloneResult, err := gitx.CloneRepo(context.Background(), remote, target)
-	if err != nil {
-		t.Fatalf("CloneRepo failed: %v", err)
-	}
+	bare := testutil.SetupBareRemoteFromSource(t, base, source)
+	cloneResult := gittest.SetupClonedRepo(t, bare, "repo")
 
 	pullBranch := "pull/77"
 	pullBranchPath := filepath.Join(cloneResult.RepoRoot, "pull-77")
@@ -698,12 +581,7 @@ func TestFetchAndCheckoutPRReusesExistingWorktree(t *testing.T) {
 	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "update-ref", "refs/pull/77/head", pullBranch)
 
 	svc := &Service{
-		Ctx: &gitx.RepoContext{
-			RepoRoot:      cloneResult.RepoRoot,
-			GitCommonDir:  cloneResult.GitCommonDir,
-			DefaultBranch: cloneResult.DefaultBranch,
-			IncludeFile:   ".worktreeinclude",
-		},
+		Ctx: gittest.RepoContextFromClone(cloneResult),
 	}
 
 	result, err := svc.FetchAndCheckoutPRWithOptions(context.Background(), 77, PRCheckoutOptions{})
@@ -732,25 +610,14 @@ func TestGetPRInfoHandlesNonexistentPR(t *testing.T) {
 	source := filepath.Join(base, "source")
 	testutil.InitRepoWithMain(t, source)
 
-	remote := filepath.Join(base, "origin.git")
-	testutil.RunGit(t, "", "clone", "--bare", source, remote)
-
-	target := filepath.Join(base, "repo")
-	cloneResult, err := gitx.CloneRepo(context.Background(), remote, target)
-	if err != nil {
-		t.Fatalf("CloneRepo failed: %v", err)
-	}
+	bare := testutil.SetupBareRemoteFromSource(t, base, source)
+	cloneResult := gittest.SetupClonedRepo(t, bare, "repo")
 
 	svc := &Service{
-		Ctx: &gitx.RepoContext{
-			RepoRoot:      cloneResult.RepoRoot,
-			GitCommonDir:  cloneResult.GitCommonDir,
-			DefaultBranch: cloneResult.DefaultBranch,
-			IncludeFile:   ".worktreeinclude",
-		},
+		Ctx: gittest.RepoContextFromClone(cloneResult),
 	}
 
-	_, err = svc.getPRInfo(context.Background(), 999999, false)
+	_, err := svc.getPRInfo(context.Background(), 999999, false)
 	if err == nil {
 		t.Fatalf("getPRInfo expected error for nonexistent PR, got nil")
 	}
@@ -774,32 +641,21 @@ func TestEnsureLocalRefUpdatedRefreshesStaleRef(t *testing.T) {
 	testutil.RunGit(t, source, "commit", "-m", "stale commit")
 	testutil.RunGit(t, source, "checkout", "main")
 
-	remote := filepath.Join(base, "origin.git")
-	testutil.RunGit(t, "", "clone", "--bare", source, remote)
-
-	target := filepath.Join(base, "repo")
-	cloneResult, err := gitx.CloneRepo(context.Background(), remote, target)
-	if err != nil {
-		t.Fatalf("CloneRepo failed: %v", err)
-	}
+	bare := testutil.SetupBareRemoteFromSource(t, base, source)
+	cloneResult := gittest.SetupClonedRepo(t, bare, "repo")
 
 	prNumber := 55
 	prRef := fmt.Sprintf("refs/pull/%d/head", prNumber)
-	featureSHA := testutil.RunGit(t, "", "--git-dir", remote, "rev-parse", "--verify", featureBranch)
+	featureSHA := testutil.RunGit(t, "", "--git-dir", bare.BareDir, "rev-parse", "--verify", featureBranch)
 	staleSHA := testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "rev-parse", "--verify", "refs/heads/"+cloneResult.DefaultBranch)
 	if featureSHA == staleSHA {
 		t.Fatalf("test setup failed: feature SHA should differ from stale SHA")
 	}
-	testutil.RunGit(t, "", "--git-dir", remote, "update-ref", prRef, featureSHA)
+	testutil.RunGit(t, "", "--git-dir", bare.BareDir, "update-ref", prRef, featureSHA)
 	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "update-ref", prRef, staleSHA)
 
 	svc := &Service{
-		Ctx: &gitx.RepoContext{
-			RepoRoot:      cloneResult.RepoRoot,
-			GitCommonDir:  cloneResult.GitCommonDir,
-			DefaultBranch: cloneResult.DefaultBranch,
-			IncludeFile:   ".worktreeinclude",
-		},
+		Ctx: gittest.RepoContextFromClone(cloneResult),
 	}
 
 	updatedSHA, warning, err := svc.ensureLocalRefUpdated(context.Background(), prNumber, staleSHA)
@@ -835,29 +691,18 @@ func TestFetchAndCheckoutPRRefreshesStaleLocalPRRefBeforeResolvingBranchName(t *
 	testutil.RunGit(t, source, "commit", "-m", "refresh PR commit")
 	testutil.RunGit(t, source, "checkout", "main")
 
-	remote := filepath.Join(base, "origin.git")
-	testutil.RunGit(t, "", "clone", "--bare", source, remote)
-
-	target := filepath.Join(base, "repo")
-	cloneResult, err := gitx.CloneRepo(context.Background(), remote, target)
-	if err != nil {
-		t.Fatalf("CloneRepo failed: %v", err)
-	}
+	bare := testutil.SetupBareRemoteFromSource(t, base, source)
+	cloneResult := gittest.SetupClonedRepo(t, bare, "repo")
 
 	prNumber := 808
 	featureSHA := testutil.RunGit(t, source, "rev-parse", "--verify", featureBranch)
 	staleSHA := testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "rev-parse", "--verify", "refs/heads/"+cloneResult.DefaultBranch)
 
-	testutil.RunGit(t, "", "--git-dir", remote, "update-ref", fmt.Sprintf("refs/pull/%d/head", prNumber), featureSHA)
+	testutil.RunGit(t, "", "--git-dir", bare.BareDir, "update-ref", fmt.Sprintf("refs/pull/%d/head", prNumber), featureSHA)
 	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "update-ref", fmt.Sprintf("refs/pull/%d/head", prNumber), staleSHA)
 
 	svc := &Service{
-		Ctx: &gitx.RepoContext{
-			RepoRoot:      cloneResult.RepoRoot,
-			GitCommonDir:  cloneResult.GitCommonDir,
-			DefaultBranch: cloneResult.DefaultBranch,
-			IncludeFile:   ".worktreeinclude",
-		},
+		Ctx: gittest.RepoContextFromClone(cloneResult),
 	}
 
 	result, err := svc.FetchAndCheckoutPRWithOptions(context.Background(), prNumber, PRCheckoutOptions{})
@@ -879,25 +724,14 @@ func TestFetchAndCheckoutPRWithCachedRefAndNoOriginWarnsAndUsesCache(t *testing.
 	source := filepath.Join(base, "source")
 	testutil.InitRepoWithMain(t, source)
 
-	remote := filepath.Join(base, "origin.git")
-	testutil.RunGit(t, "", "clone", "--bare", source, remote)
-
-	target := filepath.Join(base, "repo")
-	cloneResult, err := gitx.CloneRepo(context.Background(), remote, target)
-	if err != nil {
-		t.Fatalf("CloneRepo failed: %v", err)
-	}
+	bare := testutil.SetupBareRemoteFromSource(t, base, source)
+	cloneResult := gittest.SetupClonedRepo(t, bare, "repo")
 
 	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "update-ref", "refs/pull/42/head", "refs/heads/"+cloneResult.DefaultBranch)
 	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "remote", "remove", "origin")
 
 	svc := &Service{
-		Ctx: &gitx.RepoContext{
-			RepoRoot:      cloneResult.RepoRoot,
-			GitCommonDir:  cloneResult.GitCommonDir,
-			DefaultBranch: cloneResult.DefaultBranch,
-			IncludeFile:   ".worktreeinclude",
-		},
+		Ctx: gittest.RepoContextFromClone(cloneResult),
 	}
 
 	result, err := svc.FetchAndCheckoutPRWithOptions(context.Background(), 42, PRCheckoutOptions{})
@@ -921,27 +755,16 @@ func TestFetchAndCheckoutPRNoOriginFails(t *testing.T) {
 	source := filepath.Join(base, "source")
 	testutil.InitRepoWithMain(t, source)
 
-	remote := filepath.Join(base, "origin.git")
-	testutil.RunGit(t, "", "clone", "--bare", source, remote)
-
-	target := filepath.Join(base, "repo")
-	cloneResult, err := gitx.CloneRepo(context.Background(), remote, target)
-	if err != nil {
-		t.Fatalf("CloneRepo failed: %v", err)
-	}
+	bare := testutil.SetupBareRemoteFromSource(t, base, source)
+	cloneResult := gittest.SetupClonedRepo(t, bare, "repo")
 
 	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "remote", "remove", "origin")
 
 	svc := &Service{
-		Ctx: &gitx.RepoContext{
-			RepoRoot:      cloneResult.RepoRoot,
-			GitCommonDir:  cloneResult.GitCommonDir,
-			DefaultBranch: cloneResult.DefaultBranch,
-			IncludeFile:   ".worktreeinclude",
-		},
+		Ctx: gittest.RepoContextFromClone(cloneResult),
 	}
 
-	_, err = svc.FetchAndCheckoutPRWithOptions(context.Background(), 42, PRCheckoutOptions{})
+	_, err := svc.FetchAndCheckoutPRWithOptions(context.Background(), 42, PRCheckoutOptions{})
 	if err == nil {
 		t.Fatalf("FetchAndCheckoutPRWithOptions expected error without origin, got nil")
 	}

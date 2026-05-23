@@ -11,14 +11,9 @@ import (
 )
 
 func TestDetectDefaultBranchFallsBackToMainWhenOriginHeadMissing(t *testing.T) {
-	base := t.TempDir()
-	source := filepath.Join(base, "source")
-	testutil.InitRepoWithMain(t, source)
+	fixture := testutil.SetupBareRemote(t)
 
-	bare := filepath.Join(base, "origin.git")
-	testutil.RunGit(t, "", "clone", "--bare", source, bare)
-
-	got, err := detectDefaultBranch(context.Background(), bare)
+	got, err := detectDefaultBranch(context.Background(), fixture.BareDir)
 	if err != nil {
 		t.Fatalf("detectDefaultBranch returned error: %v", err)
 	}
@@ -40,10 +35,9 @@ func TestDetectDefaultBranchFailsWhenOriginHeadMissingAndNoFallbackBranches(t *t
 	testutil.RunGit(t, source, "commit", "-m", "initial commit")
 	testutil.RunGit(t, source, "branch", "-M", "develop")
 
-	bare := filepath.Join(base, "origin.git")
-	testutil.RunGit(t, "", "clone", "--bare", source, bare)
+	fixture := testutil.SetupBareRemoteFromSource(t, base, source)
 
-	_, err := detectDefaultBranch(context.Background(), bare)
+	_, err := detectDefaultBranch(context.Background(), fixture.BareDir)
 	if err == nil {
 		t.Fatalf("detectDefaultBranch expected error when no origin/HEAD and no fallback branches")
 	}

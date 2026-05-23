@@ -34,18 +34,9 @@ func TestRepoNameFromURL(t *testing.T) {
 }
 
 func TestCloneRepoBootstrapsTrackingAndInitialWorktree(t *testing.T) {
-	base := t.TempDir()
-	source := filepath.Join(base, "source")
-	testutil.InitRepoWithMain(t, source)
-
-	remote := filepath.Join(base, "origin.git")
-	testutil.RunGit(t, "", "clone", "--bare", source, remote)
-
-	target := filepath.Join(base, "cloned")
-	result, err := CloneRepo(context.Background(), remote, target)
-	if err != nil {
-		t.Fatalf("CloneRepo failed: %v", err)
-	}
+	bare := testutil.SetupBareRemote(t)
+	target := filepath.Join(bare.BaseDir, "cloned")
+	result := setupClonedRepo(t, bare, "cloned")
 
 	if result.DefaultBranch != "main" {
 		t.Fatalf("default branch = %q, want %q", result.DefaultBranch, "main")
@@ -85,16 +76,11 @@ func TestCloneRepoBootstrapsTrackingAndInitialWorktree(t *testing.T) {
 }
 
 func TestCloneRepoFailsWhenRemoteHeadIsUnset(t *testing.T) {
-	base := t.TempDir()
-	source := filepath.Join(base, "source")
-	testutil.InitRepoWithMain(t, source)
+	bare := testutil.SetupBareRemote(t)
+	testutil.RunGit(t, "", "--git-dir", bare.BareDir, "symbolic-ref", "HEAD", "refs/heads/does-not-exist")
 
-	remote := filepath.Join(base, "origin.git")
-	testutil.RunGit(t, "", "clone", "--bare", source, remote)
-	testutil.RunGit(t, "", "--git-dir", remote, "symbolic-ref", "HEAD", "refs/heads/does-not-exist")
-
-	target := filepath.Join(base, "cloned")
-	_, err := CloneRepo(context.Background(), remote, target)
+	target := filepath.Join(bare.BaseDir, "cloned")
+	_, err := CloneRepo(context.Background(), bare.BareDir, target)
 	if err == nil {
 		t.Fatalf("CloneRepo expected error when remote HEAD is unset")
 	}
