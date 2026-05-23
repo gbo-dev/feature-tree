@@ -85,7 +85,7 @@ Use `ft create <branch>` for any subsequent branches: it handles worktree creati
 | `ft list` | List worktrees with status |
 | `ft remove [branch]` | Remove a worktree (and optionally its branch) |
 | `ft squash [--base <branch>]` | Squash current branch commits into one |
-| `ft pr <num> [--use-pr-ref]` | Fetch and checkout a PR as a worktree (`--use-pr-ref` forces `pull/<num>` naming) |
+| `ft pr <num> [--use-pr-ref]` | Fetch and checkout a PR as a worktree; sets upstream for plain `git push` when possible (`gh` optional; `--use-pr-ref` forces `pull/<num>` naming) |
 | `ft copy-include [--from <branch>] [--to <branch>]` | Sync include-manifest files across worktrees |
 | `ft init [bash\|zsh]` | Print shell integration snippet |
 | `ft completion [bash\|zsh]` | Print tab-completion script |

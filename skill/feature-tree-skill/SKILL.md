@@ -73,10 +73,11 @@ repo/
 ### `ft pr <num>`
 
 - Fetches PR refs from `origin` and creates/switches to a worktree for the PR.
-- By default, tries to use the real branch name (resolved from the PR head SHA via `refs/heads` or `refs/remotes/origin`), falling back to `pull/<num>` if no matching branch name is found.
+- By default, uses the PR head branch name (`gh pr view` when available, otherwise resolved from git refs) and configures upstream so plain `git push` updates the PR head when branch names match.
+- Fork PRs: adds a deterministic fork remote (`ft-fork-<owner>`) when possible, or prints push hints.
 - Reuses the worktree if it already exists.
 - Flags:
-  - `--use-pr-ref`: force `pull/<num>` as the branch/worktree name instead of resolving the real branch name
+  - `--use-pr-ref`: force `pull/<num>` as the branch/worktree name; plain `git push` may need an explicit refspec (ft prints a hint)
 
 ### `ft copy-include [--from <branch>] [--to <branch>]`
 

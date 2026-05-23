@@ -22,6 +22,11 @@ type PRCheckoutOptions struct {
 	UsePRRef bool
 }
 
+type prPushUpstream struct {
+	Remote string
+	Branch string
+}
+
 func (s *Service) FetchAndCheckoutPRWithOptions(commandCtx context.Context, prNumber int, options PRCheckoutOptions) (*PRResult, error) {
 	if commandCtx == nil {
 		return nil, fmt.Errorf("missing command context")
@@ -32,6 +37,8 @@ func (s *Service) FetchAndCheckoutPRWithOptions(commandCtx context.Context, prNu
 	}
 
 	warnings := make([]string, 0, 1)
+	hints := make([]string, 0, 1)
+
 	updatedSHA, warning, err := s.ensureLocalRefUpdated(commandCtx, prInfo.Number, prInfo.HeadSHA)
 	if err != nil {
 		return nil, err
@@ -41,20 +48,50 @@ func (s *Service) FetchAndCheckoutPRWithOptions(commandCtx context.Context, prNu
 		warnings = append(warnings, warning)
 	}
 
+	metadata, _ := s.resolvePRMetadata(commandCtx, prNumber)
+
+	headBranchName := strings.TrimSpace(metadata.HeadRefName)
+	if headBranchName == "" {
+		headBranchName = strings.TrimSpace(prInfo.HeadRemote)
+	}
+	if headBranchName == "" {
+		headBranchName = s.findBranchNameBySHA(commandCtx, "refs/remotes/origin", prInfo.HeadSHA, true)
+	}
+
 	if options.UsePRRef {
 		prInfo.HeadRef = fmt.Sprintf("pull/%d", prNumber)
+	} else if headBranchName != "" {
+		prInfo.HeadRef = headBranchName
 	} else {
 		prInfo.HeadRef = s.resolvePRBranchName(commandCtx, prNumber, prInfo.HeadSHA)
+		headBranchName = prInfo.HeadRef
 	}
-	prInfo.HeadRemote = s.findBranchNameBySHA(commandCtx, "refs/remotes/origin", prInfo.HeadSHA, true)
+
+	if err := s.validateLocalBranchForPR(commandCtx, prInfo.HeadRef, prInfo.HeadSHA); err != nil {
+		return nil, err
+	}
 
 	worktrees, err := gitx.ListWorktrees(commandCtx, s.Ctx)
 	if err != nil {
 		return nil, err
 	}
 
+	var upstream *prPushUpstream
+	if options.UsePRRef {
+		if headBranchName != "" && headBranchName != prInfo.HeadRef {
+			hints = append(hints, fmt.Sprintf("local branch is %q; plain git push may fail with push.default=simple — use: git push origin HEAD:%s", prInfo.HeadRef, headBranchName))
+		}
+	} else {
+		var pushHints []string
+		upstream, pushHints, err = s.resolvePRPushUpstream(commandCtx, prInfo.HeadRef, headBranchName, metadata)
+		if err != nil {
+			return nil, err
+		}
+		hints = append(hints, pushHints...)
+	}
+
 	if existingPath := FindWorktreePath(worktrees, prInfo.HeadRef); existingPath != "" {
-		if err := s.ensurePRBranchTracking(commandCtx, prInfo.HeadRef, prInfo.HeadRemote); err != nil {
+		if err := s.applyPRPushUpstream(commandCtx, prInfo.HeadRef, upstream); err != nil {
 			return nil, err
 		}
 
@@ -64,6 +101,7 @@ func (s *Service) FetchAndCheckoutPRWithOptions(commandCtx context.Context, prNu
 			Branch:   prInfo.HeadRef,
 			Created:  false,
 			Warnings: warnings,
+			Hints:    hints,
 		}, nil
 	}
 
@@ -76,7 +114,7 @@ func (s *Service) FetchAndCheckoutPRWithOptions(commandCtx context.Context, prNu
 		return nil, err
 	}
 
-	if err := s.ensurePRBranchTracking(commandCtx, prInfo.HeadRef, prInfo.HeadRemote); err != nil {
+	if err := s.applyPRPushUpstream(commandCtx, prInfo.HeadRef, upstream); err != nil {
 		return nil, err
 	}
 
@@ -86,6 +124,7 @@ func (s *Service) FetchAndCheckoutPRWithOptions(commandCtx context.Context, prNu
 		Branch:   prInfo.HeadRef,
 		Created:  result.Created,
 		Warnings: warnings,
+		Hints:    hints,
 	}, nil
 }
 
@@ -172,28 +211,125 @@ func (s *Service) resolvePRTitle(commandCtx context.Context, headSHA string, prN
 	return title, nil
 }
 
-func (s *Service) ensurePRBranchTracking(commandCtx context.Context, localBranch string, remoteBranch string) error {
+func (s *Service) validateLocalBranchForPR(commandCtx context.Context, localBranch string, headSHA string) error {
 	localBranch = strings.TrimSpace(localBranch)
-	remoteBranch = strings.TrimSpace(remoteBranch)
-
-	if localBranch == "" || remoteBranch == "" {
+	headSHA = strings.TrimSpace(headSHA)
+	if localBranch == "" || headSHA == "" {
 		return nil
 	}
 
-	_, stderr, exitCode, runErr := gitx.RunGitCommon(commandCtx, s.Ctx, "show-ref", "--verify", "--quiet", "refs/remotes/origin/"+remoteBranch)
-	if exitCode == 1 && runErr == nil {
+	existingSHA, ok, err := s.localBranchSHA(commandCtx, localBranch)
+	if err != nil {
+		return err
+	}
+	if !ok {
 		return nil
 	}
-	if err := gitx.CommandError(fmt.Sprintf("verify remote branch %q", remoteBranch), stderr, exitCode, runErr, "git show-ref failed"); err != nil {
-		return err
+	if existingSHA == headSHA {
+		return nil
+	}
+	return fmt.Errorf("local branch %q exists at %s but PR head is %s; remove or rename the branch before checking out this PR", localBranch, shortSHA(existingSHA), shortSHA(headSHA))
+}
+
+func (s *Service) localBranchSHA(commandCtx context.Context, branch string) (string, bool, error) {
+	stdout, stderr, exitCode, runErr := gitx.RunGitCommon(commandCtx, s.Ctx, "rev-parse", "--verify", "refs/heads/"+branch)
+	if exitCode == 0 && runErr == nil {
+		return strings.TrimSpace(stdout), true, nil
+	}
+	if exitCode == 128 || exitCode == 1 {
+		return "", false, nil
+	}
+	if err := gitx.CommandError(fmt.Sprintf("resolve local branch %q", branch), stderr, exitCode, runErr, "git rev-parse failed"); err != nil {
+		return "", false, err
+	}
+	return "", false, nil
+}
+
+func shortSHA(sha string) string {
+	sha = strings.TrimSpace(sha)
+	if len(sha) <= 12 {
+		return sha
+	}
+	return sha[:12]
+}
+
+func (s *Service) resolvePRPushUpstream(commandCtx context.Context, localBranch string, headBranchName string, metadata PRMetadata) (*prPushUpstream, []string, error) {
+	localBranch = strings.TrimSpace(localBranch)
+	headBranchName = strings.TrimSpace(headBranchName)
+
+	if localBranch == "" || headBranchName == "" {
+		return nil, nil, nil
+	}
+	if localBranch != headBranchName {
+		return nil, []string{fmt.Sprintf("local branch %q differs from PR head branch %q; plain git push may require an explicit refspec", localBranch, headBranchName)}, nil
 	}
 
-	_, stderr, exitCode, runErr = gitx.RunGitCommon(commandCtx, s.Ctx, "branch", "--set-upstream-to", "origin/"+remoteBranch, localBranch)
-	if err := gitx.CommandError(fmt.Sprintf("set upstream for branch %q", localBranch), stderr, exitCode, runErr, "git branch failed"); err != nil {
-		return err
+	if metadata.IsCrossRepository && strings.TrimSpace(metadata.HeadRepositoryURL) != "" {
+		return s.resolveForkPRPushUpstream(commandCtx, localBranch, metadata)
 	}
 
-	return nil
+	exists, err := gitx.RemoteBranchExists(commandCtx, s.Ctx, "origin", headBranchName)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !exists {
+		if err := gitx.FetchRemoteBranch(commandCtx, s.Ctx, "origin", headBranchName); err != nil {
+			return nil, []string{fmt.Sprintf("PR head branch %q is not on origin yet; after committing run: git push -u origin %s", headBranchName, headBranchName)}, nil
+		}
+	}
+
+	return &prPushUpstream{Remote: "origin", Branch: headBranchName}, nil, nil
+}
+
+func (s *Service) resolveForkPRPushUpstream(commandCtx context.Context, localBranch string, metadata PRMetadata) (*prPushUpstream, []string, error) {
+	headBranchName := strings.TrimSpace(metadata.HeadRefName)
+	if headBranchName == "" {
+		headBranchName = localBranch
+	}
+
+	remoteName := forkRemoteName(metadata.HeadRepositoryOwner)
+	remoteURL := strings.TrimSpace(metadata.HeadRepositoryURL)
+	if remoteURL == "" {
+		return nil, []string{fmt.Sprintf("fork PR: add the head repository remote and push with: git push -u <remote> %s", headBranchName)}, nil
+	}
+
+	existingRemote, err := gitx.FindRemoteByURL(commandCtx, s.Ctx, remoteURL)
+	if err != nil {
+		return nil, nil, err
+	}
+	if existingRemote != "" {
+		remoteName = existingRemote
+	} else {
+		if err := gitx.AddRemote(commandCtx, s.Ctx, remoteName, remoteURL); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	if err := gitx.FetchRemoteBranch(commandCtx, s.Ctx, remoteName, headBranchName); err != nil {
+		return nil, []string{fmt.Sprintf("fork PR: fetch and push with: git fetch %s %s && git push -u %s %s", remoteName, headBranchName, remoteName, headBranchName)}, nil
+	}
+
+	return &prPushUpstream{Remote: remoteName, Branch: headBranchName}, nil, nil
+}
+
+func (s *Service) applyPRPushUpstream(commandCtx context.Context, localBranch string, upstream *prPushUpstream) error {
+	if upstream == nil {
+		return nil
+	}
+	localBranch = strings.TrimSpace(localBranch)
+	if localBranch == "" || localBranch != strings.TrimSpace(upstream.Branch) {
+		return nil
+	}
+
+	exists, err := gitx.RemoteBranchExists(commandCtx, s.Ctx, upstream.Remote, upstream.Branch)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return nil
+	}
+
+	return gitx.SetBranchUpstream(commandCtx, s.Ctx, localBranch, upstream.Remote+"/"+upstream.Branch)
 }
 
 func (s *Service) syncLocalPRBranchToHead(commandCtx context.Context, localBranch string, headSHA string) error {
@@ -201,6 +337,14 @@ func (s *Service) syncLocalPRBranchToHead(commandCtx context.Context, localBranc
 	headSHA = strings.TrimSpace(headSHA)
 
 	if localBranch == "" || headSHA == "" {
+		return nil
+	}
+
+	existingSHA, ok, err := s.localBranchSHA(commandCtx, localBranch)
+	if err != nil {
+		return err
+	}
+	if ok && existingSHA == headSHA {
 		return nil
 	}
 
