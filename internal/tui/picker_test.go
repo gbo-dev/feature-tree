@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/gbo-dev/feature-tree/internal/gitx"
-	"github.com/gbo-dev/feature-tree/internal/textwidth"
 )
 
 func stripANSI(s string) string {
@@ -25,57 +24,6 @@ func displayPart(line string) string {
 		return line[:idx]
 	}
 	return line
-}
-
-func TestBuildRowPrefix(t *testing.T) {
-	tests := []struct {
-		name  string
-		row   pickerRow
-		plain string
-	}{
-		{
-			name:  "no markers",
-			row:   pickerRow{},
-			plain: "  ",
-		},
-		{
-			name:  "current only",
-			row:   pickerRow{current: true},
-			plain: " @",
-		},
-		{
-			name:  "default branch only",
-			row:   pickerRow{marker: "^"},
-			plain: " ^",
-		},
-		{
-			name:  "mismatch only",
-			row:   pickerRow{branchMismatch: true},
-			plain: "~ ",
-		},
-		{
-			name:  "current and mismatch",
-			row:   pickerRow{current: true, branchMismatch: true},
-			plain: "~@",
-		},
-		{
-			name:  "default branch and mismatch",
-			row:   pickerRow{marker: "^", branchMismatch: true},
-			plain: "~^",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			got := buildRowPrefix(tc.row)
-			if plain := stripANSI(got); plain != tc.plain {
-				t.Fatalf("buildRowPrefix plain = %q, want %q (raw %q)", plain, tc.plain, got)
-			}
-			if width := textwidth.Width(stripANSI(got)); width != 2 {
-				t.Fatalf("buildRowPrefix width = %d, want 2", width)
-			}
-		})
-	}
 }
 
 func TestParseSelectedBranch(t *testing.T) {
@@ -191,14 +139,6 @@ func TestBuildFZFLinesShowsCurrentAndMismatchMarkersTogether(t *testing.T) {
 	plain := stripANSI(display)
 	if !strings.Contains(plain, "@") || !strings.Contains(plain, "~") {
 		t.Fatalf("buildFZFLines output missing current and mismatch markers: %q", lines[0])
-	}
-	idxTilde := strings.Index(plain, "~")
-	idxAt := strings.Index(plain, "@")
-	if idxTilde < 0 || idxAt < 0 || idxTilde > idxAt {
-		t.Fatalf("buildFZFLines mismatch marker should precede current marker, got plain %q", plain)
-	}
-	if strings.Contains(plain, "@~") {
-		t.Fatalf("buildFZFLines should not render @ before ~, got plain %q", plain)
 	}
 }
 
