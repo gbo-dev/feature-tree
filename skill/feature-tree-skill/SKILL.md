@@ -39,12 +39,13 @@ repo/
 ### `ft list`
 
 - Lists known worktrees in a table-like view.
-- Markers:
-  - `@` = current branch worktree
-  - `^` = default branch worktree
+- Markers (two leading columns before the branch name):
   - `~` = worktree directory does not match checked-out branch (e.g. after manual `git checkout` in that directory)
+  - `@` = current branch worktree
+  - `^` = default branch worktree when it is not the current worktree
+  - markers can combine (for example, `~@` or `~^`)
 - `STATE` values:
-  - `clean` or `dirty` with symbols
+  - `clean` or symbol combinations
   - `+` staged, `!` unstaged, `?` untracked (combined when multiple apply)
 - `RELATION` is relative to default branch:
   - `A: <n>` commits ahead
@@ -55,6 +56,7 @@ repo/
 - Switches to an existing worktree branch.
 - Without `branch`, opens an interactive picker (TTY required).
 - If no worktree exists for a branch, it errors unless `--create` is used.
+- Picker preview tabs: **Overview**, **Commit log**, **vs. default**, **vs. upstream**. Use `tab`/`s-tab` (or left/right arrows) to cycle.
 - Flags:
   - `-c, --create`: create missing worktree while switching
   - `-b, --base <branch>`: base branch used with `--create`
@@ -142,6 +144,22 @@ eval "$(ft init zsh)"
 ```sh
 ft completion zsh > ~/.ft-completion.zsh
 source ~/.ft-completion.zsh
+```
+
+## Repo layout
+
+```text
+cmd/ft/         entry point
+internal/
+  cli/          cobra commands and tab-completion
+  core/         worktree service logic
+  gitx/         git subprocess helpers
+  shell/        shell integration script generation
+  testutil/     test helpers
+  textwidth/    terminal width calculations
+  tui/          embedded fzf picker
+  uiansi/       ANSI styling helpers
+references/     design notes and option references
 ```
 
 ## Common workflows
