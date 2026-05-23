@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/gbo-dev/feature-tree/internal/uiansi"
 )
 
 func TestPickerPreviewCommandReadsCacheFile(t *testing.T) {
@@ -85,7 +87,7 @@ func TestPickerPreviewTabCommandReadsCurrentTabFile(t *testing.T) {
 	if !strings.Contains(stdout, "[tab/s-tab]") {
 		t.Fatalf("__picker-preview-tab stdout missing key hint: %q", stdout)
 	}
-	if !strings.Contains(stdout, "\x1b[48;2;26;46;44m") {
+	if !strings.Contains(stdout, uiansi.TabActiveBg) {
 		t.Fatalf("__picker-preview-tab stdout missing active-tab background color: %q", stdout)
 	}
 	if !strings.HasSuffix(stdout, "three") {

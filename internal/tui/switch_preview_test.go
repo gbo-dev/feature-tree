@@ -111,10 +111,10 @@ func TestColorizeDiffStatLineKeepsAlignment(t *testing.T) {
 	if !strings.Contains(out, "|  2") {
 		t.Fatalf("expected aligned count column, got: %q", out)
 	}
-	if !strings.Contains(out, "\x1b[38;5;114m+\x1b[0m") {
+	if !strings.Contains(out, uiansi.Green+"+"+uiansi.Reset) {
 		t.Fatalf("expected plus sign coloring, got: %q", out)
 	}
-	if !strings.Contains(out, "\x1b[38;5;203m-\x1b[0m") {
+	if !strings.Contains(out, uiansi.DiffRed+"-"+uiansi.Reset) {
 		t.Fatalf("expected minus sign coloring, got: %q", out)
 	}
 }
