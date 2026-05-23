@@ -82,7 +82,7 @@ Use `ft create <branch>` for any subsequent branches: it handles worktree creati
 | `ft clone <url> [dir]` | Clone a repo into bare-in-`.git` layout with an initial worktree |
 | `ft switch [--create] [--base <branch>] [branch]` | Switch to an existing worktree; optionally create missing worktree; opens fzf picker if no branch given (`tab`/`s-tab` preview tabs in picker) |
 | `ft create [--all-branches] [--base <branch>] [branch]` | Create a branch worktree; picker opens only with `--all-branches` and no branch |
-| `ft list` | List worktrees with status |
+| `ft list` | List worktrees in a table (markers, STATE, RELATION, COMMIT) |
 | `ft remove [branch]` | Remove a worktree (and optionally its branch) |
 | `ft squash [--base <branch>]` | Squash current branch commits into one |
 | `ft pr <num> [--use-pr-ref]` | Fetch and checkout a PR as a worktree; sets upstream for plain `git push` when possible (`gh` optional; `--use-pr-ref` forces `pull/<num>` naming) |
@@ -106,6 +106,40 @@ In list and picker views, `STATE` is shown as:
 - `!` for unstaged changes
 - `?` for untracked files
 - combinations like `+!`, `!?`, or `+!?` when multiple apply
+
+There is no generic `dirty` STATE label; `ft remove` and `ft squash` may still refer to a “dirty worktree” in error messages.
+
+## List and picker markers
+
+`ft list` and interactive pickers (`ft switch`, `ft create --all-branches`, `ft remove`) render two marker columns before `BRANCH`:
+
+| Slot | Symbol | Meaning |
+|------|--------|---------|
+| 1 | `~` | Worktree directory name does not match the checked-out branch (e.g. after `git checkout` another branch inside that worktree) |
+| 1 | (space) | Directory matches the checked-out branch |
+| 2 | `@` | Current branch’s worktree |
+| 2 | `^` | Default-branch worktree when you are **not** on the default branch (when you are on default, that row shows `@` instead) |
+| 2 | (space) | Otherwise |
+
+On a `~` row, `BRANCH` shows the **checked-out** branch (not the directory name). The switch picker **Overview** tab adds `DEDICATED` (directory) and `CHECKED OUT` (branch) for mismatches.
+
+Column layout:
+
+- **`ft list`:** markers + `BRANCH` + `PATH` + `STATE` + `RELATION` + `COMMIT`
+- **Pickers:** same markers and columns; `ft switch` and `ft create --all-branches` omit `PATH` in the list pane
+
+## Switch picker preview
+
+When `ft switch` runs without a branch argument in a TTY, the picker shows a preview pane below the list. Cycle tabs with `tab` / `shift-tab` (or `→` / `←`):
+
+| Tab | Content |
+|-----|---------|
+| Overview | `PATH`, `STATE`, optional `DEDICATED` / `CHECKED OUT` on `~` rows, `VS. MAIN`, `HEAD` |
+| Commit log | Recent commits on that branch |
+| vs. default | Diff against the default branch |
+| vs. upstream | Diff against upstream |
+
+`ft create --all-branches` and `ft remove` pickers use the same markers and `STATE` columns but do not include preview tabs.
 
 ## `ft clone`
 
@@ -161,7 +195,9 @@ internal/
   core/         worktree service logic
   gitx/         git subprocess helpers
   shell/        shell integration script generation
-  tui/          embedded fzf picker
+  textwidth/    terminal visible-width and Unicode-safe truncation
+  tui/          embedded fzf picker and previews
+  uiansi/       ANSI color constants for TUI and help text
 references/     design notes and option references
 ```
 

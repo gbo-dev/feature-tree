@@ -38,14 +38,14 @@ repo/
 
 ### `ft list`
 
-- Lists known worktrees in a table-like view.
-- Markers:
+- Lists known worktrees in a table: markers + `BRANCH` + `PATH` + `STATE` + `RELATION` + `COMMIT`.
+- Markers (two columns before `BRANCH`):
   - `@` = current branch worktree
-  - `^` = default branch worktree
-  - `~` = worktree directory does not match checked-out branch (e.g. after manual `git checkout` in that directory)
-- `STATE` values:
-  - `clean` or `dirty` with symbols
-  - `+` staged, `!` unstaged, `?` untracked (combined when multiple apply)
+  - `^` = default-branch worktree when you are **not** on the default branch (on default, that row shows `@` instead)
+  - `~` = worktree directory does not match checked-out branch (e.g. after manual `git checkout` in that directory); `BRANCH` shows the checked-out branch
+- `STATE` values (no generic `dirty` label):
+  - `clean` when there are no local changes
+  - `+` staged, `!` unstaged, `?` untracked (combined when multiple apply, e.g. `+!?`)
 - `RELATION` is relative to default branch:
   - `A: <n>` commits ahead
   - `B: <n>` commits behind
@@ -55,6 +55,14 @@ repo/
 - Switches to an existing worktree branch.
 - Without `branch`, opens an interactive picker (TTY required).
 - If no worktree exists for a branch, it errors unless `--create` is used.
+- Interactive picker (TTY, no branch argument):
+  - Same markers and `STATE` as `ft list`; `PATH` is hidden in the list pane
+  - Preview pane with tabs (cycle with `tab` / `shift-tab`, or `→` / `←`):
+    - **Overview** — `PATH`, `STATE`, optional `DEDICATED` / `CHECKED OUT` on `~` rows, `VS. MAIN`, `HEAD`
+    - **Commit log** — recent commits
+    - **vs. default** — diff vs default branch
+    - **vs. upstream** — diff vs upstream
+  - See `ft switch --help` for a short summary
 - Flags:
   - `-c, --create`: create missing worktree while switching
   - `-b, --base <branch>`: base branch used with `--create`
@@ -68,7 +76,7 @@ repo/
 - For non-default branches, copies include-manifest files from default branch worktree.
 - Flags:
   - `-b, --base <branch>`: base branch for new branch creation
-  - `-a, --all-branches`: when `branch` is omitted, open picker that includes local branches without worktrees (TTY required)
+  - `-a, --all-branches`: when `branch` is omitted, open picker that includes local branches without worktrees (TTY required; same markers/`STATE` as `ft list`, no preview tabs)
 
 ### `ft pr <num>`
 
@@ -110,7 +118,7 @@ repo/
 - Default branch worktree cannot be removed.
 - If `branch` omitted:
   - Uses current branch when not on default
-  - On default branch with TTY, opens picker for removable branches
+  - On default branch with TTY, opens picker for removable branches (markers/`STATE` as `ft list`; no preview tabs)
 - Safety checks (unless forced):
   - Blocks dirty worktrees
   - Blocks branches with unpushed commits
