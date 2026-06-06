@@ -7,7 +7,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/gbo-dev/feature-tree/internal/core"
-	"github.com/gbo-dev/feature-tree/internal/gitx"
 )
 
 func newIncludeCmd() *cobra.Command {
@@ -40,9 +39,9 @@ func newIncludeCmd() *cobra.Command {
 
 			to := toBranch
 			if strings.TrimSpace(to) == "" {
-				to, err = gitx.CurrentBranch(cmd.Context(), "")
+				to, err = svc.CurrentBranch(cmd.Context())
 				if err != nil {
-					return fmt.Errorf("cannot infer destination branch from detached HEAD")
+					return mapDetachedHead(err, "cannot infer destination branch from detached HEAD")
 				}
 			}
 			to, err = svc.ResolveBranchShortcut(cmd.Context(), to)
@@ -55,7 +54,7 @@ func newIncludeCmd() *cobra.Command {
 			}
 
 			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "Copied include entries from %s to %s\n", from, to); err != nil {
-				return fmt.Errorf("write copy-include output: %w", err)
+				return errWriteOutput("copy-include", err)
 			}
 			return nil
 		},

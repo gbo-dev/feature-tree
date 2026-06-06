@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -45,6 +46,7 @@ type RemoveResult struct {
 	Path              string
 	FallbackPath      string
 	TargetRef         string
+	FetchWarning      string
 	DeletedMerged     bool
 	DeletedIdentical  bool
 	DeletedEquivalent bool
@@ -76,7 +78,10 @@ func (s *Service) ResolveBranchShortcut(commandCtx context.Context, input string
 	case "@":
 		current, err := gitx.CurrentBranch(commandCtx, "")
 		if err != nil {
-			return "", fmt.Errorf("HEAD is detached; @ is unavailable")
+			if errors.Is(err, gitx.ErrDetachedHead) {
+				return "", fmt.Errorf("HEAD is detached; @ is unavailable")
+			}
+			return "", fmt.Errorf("resolve current branch: %w", err)
 		}
 		return current, nil
 	default:

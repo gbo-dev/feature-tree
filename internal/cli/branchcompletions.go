@@ -11,8 +11,14 @@ import (
 )
 
 func completionContext(cmd *cobra.Command) context.Context {
-	if cmd != nil && cmd.Context() != nil {
-		return cmd.Context()
+	if cmd == nil {
+		return context.Background()
+	}
+	if ctx := cmd.Context(); ctx != nil {
+		return ctx
+	}
+	if root := cmd.Root(); root != nil && root.Context() != nil {
+		return root.Context()
 	}
 	return context.Background()
 }

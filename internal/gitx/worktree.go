@@ -2,6 +2,7 @@ package gitx
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strconv"
@@ -76,10 +77,28 @@ func ListWorktrees(commandCtx context.Context, ctx *RepoContext) ([]Worktree, er
 
 func CurrentBranch(commandCtx context.Context, dir string) (string, error) {
 	stdout, stderr, exitCode, runErr := RunGit(commandCtx, dir, "symbolic-ref", "--quiet", "--short", "HEAD")
-	if err := CommandError("resolve current branch", stderr, exitCode, runErr, "HEAD is detached"); err != nil {
-		return "", err
+	if runErr != nil {
+		return "", fmt.Errorf("resolve current branch: %w", runErr)
+	}
+	if exitCode != 0 {
+		if isDetachedHeadFailure(stderr, exitCode) {
+			return "", fmt.Errorf("resolve current branch: %w", ErrDetachedHead)
+		}
+		return "", CommandError("resolve current branch", stderr, exitCode, nil, "HEAD is detached")
 	}
 	return strings.TrimSpace(stdout), nil
+}
+
+func isDetachedHeadFailure(stderr string, exitCode int) bool {
+	if exitCode == 1 {
+		return true
+	}
+	lower := strings.ToLower(strings.TrimSpace(stderr))
+	return strings.Contains(lower, "not a symbolic ref") || strings.Contains(lower, "detached")
+}
+
+func IsDetachedHead(err error) bool {
+	return errors.Is(err, ErrDetachedHead)
 }
 
 func BranchExistsLocal(commandCtx context.Context, ctx *RepoContext, branch string) (bool, error) {

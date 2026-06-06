@@ -46,6 +46,17 @@ func TestWorktreeHelpersListAndBranchQueries(t *testing.T) {
 		t.Fatalf("CurrentBranch = %q, want %q", current, "main")
 	}
 
+	head := testutil.RunGit(t, mainWorktreePath, "rev-parse", "HEAD")
+	testutil.RunGit(t, mainWorktreePath, "checkout", "--detach", head)
+
+	_, err = CurrentBranch(context.Background(), mainWorktreePath)
+	if err == nil {
+		t.Fatalf("CurrentBranch expected error on detached HEAD")
+	}
+	if !IsDetachedHead(err) {
+		t.Fatalf("CurrentBranch detached HEAD error = %v, want ErrDetachedHead", err)
+	}
+
 	exists, err := BranchExistsLocal(context.Background(), repoCtx, "feature-worktree")
 	if err != nil {
 		t.Fatalf("BranchExistsLocal returned error: %v", err)
