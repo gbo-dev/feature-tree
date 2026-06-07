@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -94,7 +95,7 @@ func TestResolveBranchShortcutDetachedHead(t *testing.T) {
 	if err == nil {
 		t.Fatalf("ResolveBranchShortcut(@) expected error on detached HEAD")
 	}
-	if !strings.Contains(err.Error(), "HEAD is detached") {
-		t.Fatalf("detached HEAD error = %q, expected mention of detached HEAD", err.Error())
+	if !errors.Is(err, gitx.ErrDetachedHead) && !strings.Contains(err.Error(), "HEAD is detached") {
+		t.Fatalf("detached HEAD error = %q, expected ErrDetachedHead or detached HEAD message", err.Error())
 	}
 }

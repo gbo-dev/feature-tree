@@ -1,13 +1,9 @@
 package cli
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/spf13/cobra"
 
 	"github.com/gbo-dev/feature-tree/internal/core"
-	"github.com/gbo-dev/feature-tree/internal/gitx"
 	"github.com/gbo-dev/feature-tree/internal/tui"
 )
 
@@ -21,20 +17,12 @@ func newListCmd() *cobra.Command {
 				return err
 			}
 
-			entries, err := gitx.ListWorktrees(cmd.Context(), svc.Ctx)
+			state, err := svc.WorktreeState(cmd.Context())
 			if err != nil {
-				return err
+				return mapCurrentBranchForList(err)
 			}
 
-			current, currentErr := gitx.CurrentBranch(cmd.Context(), "")
-			if currentErr != nil {
-				if strings.Contains(strings.ToLower(currentErr.Error()), "detached") {
-					return fmt.Errorf("cannot determine current branch while HEAD is detached; check out a branch and retry")
-				}
-				return fmt.Errorf("resolve current branch for list: %w", currentErr)
-			}
-
-			return tui.PrintWorktreeList(cmd.Context(), entries, current, svc.Ctx, cmd.OutOrStdout())
+			return tui.PrintWorktreeList(cmd.Context(), state.Entries, state.CurrentBranch, svc.Ctx, cmd.OutOrStdout())
 		},
 	}
 }

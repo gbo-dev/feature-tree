@@ -30,6 +30,11 @@ func (s *Service) RemoveWorktree(commandCtx context.Context, branch string, forc
 		return nil, fmt.Errorf("cannot use --force-branch with --no-delete-branch")
 	}
 
+	var fetchWarning string
+	if fetchErr := gitx.FetchOrigin(commandCtx, s.Ctx); fetchErr != nil {
+		fetchWarning = fetchErr.Error()
+	}
+
 	resolvedBranch, err := s.ResolveBranchShortcut(commandCtx, branch)
 	if err != nil {
 		return nil, err
@@ -62,6 +67,7 @@ func (s *Service) RemoveWorktree(commandCtx context.Context, branch string, forc
 	result := &RemoveResult{
 		Branch:         resolvedBranch,
 		Path:           target.Path,
+		FetchWarning:   fetchWarning,
 		NoDeleteBranch: noDeleteBranch,
 	}
 

@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"os"
 
@@ -9,7 +8,6 @@ import (
 	"golang.org/x/term"
 
 	"github.com/gbo-dev/feature-tree/internal/core"
-	"github.com/gbo-dev/feature-tree/internal/gitx"
 	"github.com/gbo-dev/feature-tree/internal/shell"
 	"github.com/gbo-dev/feature-tree/internal/tui"
 )
@@ -48,22 +46,15 @@ Interactive picker notes:
 			if len(args) == 1 {
 				branch = args[0]
 			} else {
-				entries, err := gitx.ListWorktrees(cmd.Context(), svc.Ctx)
+				state, err := svc.WorktreeState(cmd.Context())
 				if err != nil {
-					return err
+					return mapDetachedHead(err, "cannot infer branch from detached HEAD")
 				}
 
-				current, err := gitx.CurrentBranch(cmd.Context(), "")
-				if err != nil {
-					return fmt.Errorf("cannot infer branch from detached HEAD")
-				}
 				if term.IsTerminal(int(os.Stdin.Fd())) {
-					picked, pickErr := tui.PickSwitchBranch(cmd.Context(), entries, current, svc.Ctx)
+					picked, pickErr := tui.PickSwitchBranch(cmd.Context(), state.Entries, state.CurrentBranch, svc.Ctx)
 					if pickErr != nil {
-						if errors.Is(pickErr, tui.ErrSelectionCancelled) {
-							return fmt.Errorf("selection cancelled")
-						}
-						return pickErr
+						return handlePickerError(pickErr)
 					}
 					branch = picked
 				} else {
@@ -79,11 +70,11 @@ Interactive picker notes:
 			out := cmd.OutOrStdout()
 			if result.Created {
 				if _, err := fmt.Fprintf(out, "Created worktree: %s -> %s\n", result.Branch, result.Path); err != nil {
-					return fmt.Errorf("write switch output: %w", err)
+					return errWriteOutput("switch", err)
 				}
 			}
 			if _, err := fmt.Fprintf(out, "Switched to %s (%s)\n", result.Branch, result.Path); err != nil {
-				return fmt.Errorf("write switch output: %w", err)
+				return errWriteOutput("switch", err)
 			}
 			shell.EmitCDOrWarning(result.Path, cmd.OutOrStdout(), cmd.ErrOrStderr())
 

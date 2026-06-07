@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"os"
 
@@ -9,7 +8,6 @@ import (
 	"golang.org/x/term"
 
 	"github.com/gbo-dev/feature-tree/internal/core"
-	"github.com/gbo-dev/feature-tree/internal/gitx"
 	"github.com/gbo-dev/feature-tree/internal/shell"
 	"github.com/gbo-dev/feature-tree/internal/tui"
 )
@@ -44,22 +42,15 @@ func newCreateCmd() *cobra.Command {
 					return fmt.Errorf("branch name is required")
 				}
 
-				entries, err := gitx.ListWorktrees(cmd.Context(), svc.Ctx)
+				state, err := svc.WorktreeState(cmd.Context())
 				if err != nil {
-					return err
-				}
-				current, err := gitx.CurrentBranch(cmd.Context(), "")
-				if err != nil {
-					return fmt.Errorf("cannot infer branch from detached HEAD")
+					return mapDetachedHead(err, "cannot infer branch from detached HEAD")
 				}
 
 				if term.IsTerminal(int(os.Stdin.Fd())) {
-					picked, pickErr := tui.PickCreateBranch(cmd.Context(), entries, current, svc.Ctx, includeAllBranches)
+					picked, pickErr := tui.PickCreateBranch(cmd.Context(), state.Entries, state.CurrentBranch, svc.Ctx, includeAllBranches)
 					if pickErr != nil {
-						if errors.Is(pickErr, tui.ErrSelectionCancelled) {
-							return fmt.Errorf("selection cancelled")
-						}
-						return pickErr
+						return handlePickerError(pickErr)
 					}
 					branch = picked
 				} else {
@@ -75,11 +66,11 @@ func newCreateCmd() *cobra.Command {
 			out := cmd.OutOrStdout()
 			if result.Created {
 				if _, err := fmt.Fprintf(out, "Created worktree: %s -> %s\n", result.Branch, result.Path); err != nil {
-					return fmt.Errorf("write create output: %w", err)
+					return errWriteOutput("create", err)
 				}
 			} else {
 				if _, err := fmt.Fprintf(out, "Already exists: %s (%s)\n", result.Branch, result.Path); err != nil {
-					return fmt.Errorf("write create output: %w", err)
+					return errWriteOutput("create", err)
 				}
 			}
 

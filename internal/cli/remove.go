@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -11,7 +10,6 @@ import (
 	"golang.org/x/term"
 
 	"github.com/gbo-dev/feature-tree/internal/core"
-	"github.com/gbo-dev/feature-tree/internal/gitx"
 	"github.com/gbo-dev/feature-tree/internal/shell"
 	"github.com/gbo-dev/feature-tree/internal/tui"
 )
@@ -40,24 +38,21 @@ func newRemoveCmd() *cobra.Command {
 			if len(args) == 1 {
 				branch = args[0]
 			} else {
-				current, currentErr := gitx.CurrentBranch(cmd.Context(), "")
+				current, currentErr := svc.CurrentBranch(cmd.Context())
 				if currentErr != nil {
-					return fmt.Errorf("cannot infer branch from detached HEAD")
+					return mapDetachedHead(currentErr, "cannot infer branch from detached HEAD")
 				}
 
 				if current != svc.Ctx.DefaultBranch {
 					branch = current
 				} else if term.IsTerminal(int(os.Stdin.Fd())) {
-					entries, err := gitx.ListWorktrees(cmd.Context(), svc.Ctx)
+					state, err := svc.WorktreeState(cmd.Context())
 					if err != nil {
 						return err
 					}
-					picked, pickErr := tui.PickRemoveBranch(cmd.Context(), entries, current, svc.Ctx)
+					picked, pickErr := tui.PickRemoveBranch(cmd.Context(), state.Entries, current, svc.Ctx)
 					if pickErr != nil {
-						if errors.Is(pickErr, tui.ErrSelectionCancelled) {
-							return fmt.Errorf("selection cancelled")
-						}
-						return pickErr
+						return handlePickerError(pickErr)
 					}
 					branch = picked
 				} else {
@@ -65,13 +60,13 @@ func newRemoveCmd() *cobra.Command {
 				}
 			}
 
-			if fetchErr := gitx.FetchOrigin(cmd.Context(), svc.Ctx); fetchErr != nil {
-				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "could not fetch from origin (%s); using cached refs\n", fetchErr)
-			}
-
 			result, err := svc.RemoveWorktree(cmd.Context(), branch, forceWorktree, forceBranch, noDeleteBranch)
 			if err != nil {
 				return err
+			}
+
+			if strings.TrimSpace(result.FetchWarning) != "" {
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "could not fetch from origin (%s); using cached refs\n", result.FetchWarning)
 			}
 
 			if err := renderRemoveResult(cmd.OutOrStdout(), result, svc.Ctx.DefaultBranch); err != nil {
@@ -97,7 +92,7 @@ func newRemoveCmd() *cobra.Command {
 func renderRemoveResult(w io.Writer, result *core.RemoveResult, defaultBranch string) error {
 	writeLine := func(format string, args ...any) error {
 		if _, err := fmt.Fprintf(w, format, args...); err != nil {
-			return fmt.Errorf("write remove output: %w", err)
+			return errWriteOutput("remove", err)
 		}
 		return nil
 	}
