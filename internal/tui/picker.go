@@ -526,7 +526,6 @@ func fzfBaseArgs() []string {
 		"--pointer=◆",
 		"--marker=>",
 		"--gutter= ",
-		"--separator=-",
 		"--scrollbar=│",
 		"--info=right",
 		"--color=fg:-1,fg+:#f4ede0:regular,bg:-1,bg+:#1a2e2c",
