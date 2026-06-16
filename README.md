@@ -80,7 +80,7 @@ Use `ft create <branch>` for any subsequent branches: it handles worktree creati
 | Command | Description |
 |---|---|
 | `ft clone <url> [dir]` | Clone a repo into bare-in-`.git` layout with an initial worktree |
-| `ft switch [--create] [--base <branch>] [branch]` | Switch to an existing worktree; optionally create missing worktree; opens fzf picker if no branch given (`tab`/`s-tab` preview tabs in picker) |
+| `ft switch [--create] [--base <branch>] [branch]` | Switch to an existing worktree; optionally create missing worktree; opens fzf picker if no branch given (`tab`/`s-tab` or left/right cycles preview tabs) |
 | `ft create [--all-branches] [--base <branch>] [branch]` | Create a branch worktree; picker opens only with `--all-branches` and no branch |
 | `ft list` | List worktrees with status |
 | `ft remove [branch]` | Remove a worktree (and optionally its branch) |
@@ -106,6 +106,26 @@ In list and picker views, `STATE` is shown as:
 - `!` for unstaged changes
 - `?` for untracked files
 - combinations like `+!`, `!?`, or `+!?` when multiple apply
+
+## Marker columns
+
+List and picker views display two leading marker columns before the branch name:
+
+- left column: `~` when the worktree directory does not match the checked-out branch (for example, after a manual `git checkout` in that directory)
+- right column: `@` for the current worktree, `^` for the default branch when it is not the current worktree
+
+Markers can appear together (for example, `~@` or `~^`) when both conditions apply.
+
+## Switch picker preview tabs
+
+When `ft switch` opens the interactive picker, the preview pane includes four tabs:
+
+1. **Overview** (path, state, relation, HEAD)
+2. **Commit log** (recent commits with stats)
+3. **vs. default** (diff against the detected default branch)
+4. **vs. upstream** (diff against the branch upstream, when configured)
+
+Use `tab`/`s-tab` (or left/right arrows) to cycle between tabs.
 
 ## `ft clone`
 
@@ -161,7 +181,10 @@ internal/
   core/         worktree service logic
   gitx/         git subprocess helpers
   shell/        shell integration script generation
+  testutil/     test helpers
+  textwidth/    terminal width calculations
   tui/          embedded fzf picker
+  uiansi/       ANSI styling helpers
 references/     design notes and option references
 ```
 
