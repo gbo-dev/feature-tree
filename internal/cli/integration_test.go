@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gbo-dev/feature-tree/internal/gitx"
+	"github.com/gbo-dev/feature-tree/internal/gittest"
 	"github.com/gbo-dev/feature-tree/internal/shell"
 	"github.com/gbo-dev/feature-tree/internal/testutil"
 )
@@ -526,20 +526,8 @@ func TestPRCommandNoPRArgument(t *testing.T) {
 func setupCLIRepo(t *testing.T) (string, string) {
 	t.Helper()
 
-	basePath := t.TempDir()
-	sourcePath := filepath.Join(basePath, "source")
-	testutil.InitRepoWithMain(t, sourcePath)
-
-	remotePath := filepath.Join(basePath, "origin.git")
-	testutil.RunGit(t, "", "clone", "--bare", sourcePath, remotePath)
-
-	targetPath := filepath.Join(basePath, "repo")
-	cloneResult, err := gitx.CloneRepo(context.Background(), remotePath, targetPath)
-	if err != nil {
-		t.Fatalf("CloneRepo failed: %v", err)
-	}
-
-	return cloneResult.RepoRoot, cloneResult.WorktreePath
+	clone := gittest.SetupClonedRepoFromBare(t)
+	return clone.RepoRoot, clone.WorktreePath
 }
 
 func runRootCommand(t *testing.T, cwd string, args ...string) (string, string, error) {

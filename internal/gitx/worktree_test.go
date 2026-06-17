@@ -86,28 +86,7 @@ func TestWorktreeHelpersDirtySymbolsAndRelation(t *testing.T) {
 func setupWorktreeTestRepo(t *testing.T) (*RepoContext, string, string) {
 	t.Helper()
 
-	base := t.TempDir()
-	source := filepath.Join(base, "source")
-	testutil.InitRepoWithMain(t, source)
-
-	remote := filepath.Join(base, "origin.git")
-	testutil.RunGit(t, "", "clone", "--bare", source, remote)
-
-	target := filepath.Join(base, "repo")
-	cloneResult, err := CloneRepo(context.Background(), remote, target)
-	if err != nil {
-		t.Fatalf("CloneRepo failed: %v", err)
-	}
-
-	featurePath := filepath.Join(cloneResult.RepoRoot, "feature-worktree")
-	testutil.RunGit(t, "", "--git-dir", cloneResult.GitCommonDir, "worktree", "add", "-b", "feature-worktree", featurePath, cloneResult.DefaultBranch)
-
-	repoCtx := &RepoContext{
-		RepoRoot:      cloneResult.RepoRoot,
-		GitCommonDir:  cloneResult.GitCommonDir,
-		DefaultBranch: cloneResult.DefaultBranch,
-		IncludeFile:   ".worktreeinclude",
-	}
-
-	return repoCtx, cloneResult.WorktreePath, featurePath
+	const branch = "feature-worktree"
+	clone, featurePath := setupClonedRepoWithWorktree(t, branch)
+	return repoContextFromClone(clone), clone.WorktreePath, featurePath
 }
